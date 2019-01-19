@@ -1,0 +1,5 @@
+CREATE OR REPLACE PACKAGE pck_grants_admin AS
+END;
+/
+
+SHOW ERRORS
