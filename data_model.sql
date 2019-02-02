@@ -13,7 +13,21 @@ create 	     table object_grant_requests --OGR
 	         ,revoke_reason	 varchar2(200)
 		,request_last_executed timestamp
 );
-	    
+
+create or replace view v_object_grant_requests 
+as
+SELECT id, object_name, owner
+  ,grantee_name_pattern, grantee_is_regexp
+  , privilege
+  , CASE WHEN last_grant_req_ts > last_revoke_req_ts OR last_revoke_req_ts IS NULL THEN 'G'
+    ELSE 'R'
+    END  AS REQUEST_TYPE
+  , grantable
+  , last_grant_req_ts
+  , last_revoke_req_ts
+  , grant_reason, revoke_reason
+FROM object_grant_requests
+;
 --drop 	 table detected_unrequested_grants ;
 create 	 table detected_unrequested_grants -- DUG
 (	        id NUMBER generated always as identity
@@ -29,12 +43,14 @@ create 	 table detected_unrequested_grants -- DUG
 --	         active_flg
 --	         actived_dt
 	
-create global temporary table gtmp_granted_objects
+create global temporary table gtmp_grantable_objects
+on commit preserve rows
 as select owner, object_name, object_type from all_objects where 1=0
 --for dba_objects of relevant types
 ;
-
+drop table gtmp_request_denormed ;
 create global temporary table gtmp_object_privs
+on commit preserve rows
 --for dba_tab_privs for relevant grantees and 	relevant object types
 as select table_schema as owner, table_name as object_name, grantee, privilege, grantable
 from all_tab_privs where 1=0
@@ -45,13 +61,14 @@ create global temporary table gtmp_request_denormed
 (	         object_name	 varchar2(30) NOT NULL
 	         ,owner               varchar2(30) NOT NULL
 	         ,grantee	 varchar2(30) NOT NULL
+	         ,grantable	 char(1) 
 	         ,priv	 varchar2(30) NOT NULL
 	         ,request_type 	char(1) CHECK( request_type in ('G', 'R' ) )
-);
-	
-create or replace view v_request_consolidated
--- to consolidate one request row as grant or revoke
+             ,request_id    NUMBER NOT NULL 
+)
+on commit preserve rows
 ;
+	
 	
 --	     package with procedures
 --	         to denormalize grant request from OGR and GRu

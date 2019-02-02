@@ -1,10 +1,48 @@
 CREATE OR REPLACE PACKAGE BODY pck_grants_admin AS
 
 PROCEDURE ep_denormalize_grants
---to denormalize grant request from OGR and GRu
-( ip_schema IN VARCHAR2
+( i_schema IN VARCHAR2
 )
-AS BEGIN NULL;
+AS 
+BEGIN
+	execute immediate 'truncate table gtmp_grantable_objects';
+	INSERT INTO gtmp_grantable_objects
+	( owner,    object_name,     object_type
+	)
+	SELECT owner,    object_name,     object_type
+	FROM dba_objects
+	WHERE owner = i_schema
+		AND object_type IN
+		('aa'
+		,'FUNCTION'
+		,'PACKAGE'
+		,'PROCEDURE'
+		,'TABLE'
+		,'TYPE'
+		,'VIEW'
+		)	;
+	loginfo ($$plsql_unit||':'||$$plsql_line, 'inserted rows into gtmp_grantable_objects: '||sql%rowcount );
+
+	execute immediate 'truncate table gtmp_request_denormed';
+	INSERT INTO gtmp_request_denormed
+	( owner,    object_name,     grantee,    grantable,    priv,   request_type,   request_id
+	)
+	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id
+	FROM v_object_grant_requests r
+	JOIN sys.all_grantees g  ON REGEXP_LIKE ( g.grantee, r.grantee_name_pattern )
+	JOIN gtmp_grantable_objects o ON o.owner = r.owner AND o.object_name = r.object_name
+	WHERE r.grantee_is_regexp = 'Y'
+	UNION ALL
+	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id
+	FROM v_object_grant_requests r
+	JOIN sys.all_grantees g  ON g.grantee = r.grantee_name_pattern 
+	JOIN gtmp_grantable_objects o ON o.owner = r.owner AND o.object_name = r.object_name
+	WHERE r.grantee_is_regexp = 'N'
+	;
+	loginfo ($$plsql_unit||':'||$$plsql_line, 'inserted rows into gtmp_request_denormed: '||sql%rowcount );
+	
+	COMMIT;
+
 END ep_denormalize_grants;
 
 FUNCTION ef_report_conflicts
@@ -12,23 +50,80 @@ FUNCTION ef_report_conflicts
 ( ip_raise_conflicts_flg IN NUMBER DEFAULT 1
 )
 RETURN CLOB
-AS BEGIN NULL;
+AS
+BEGIN
+NULL;
+NULL;
 END ef_report_conflicts;
 
 
 PROCEDURE ep_process_requests
---to process the requests which also merge into the DUG
-( ip_schema VARCHAR2
+( i_schema VARCHAR2
 )
-AS BEGIN NULL;
+AS 
+BEGIN 
+	ep_denormalize_grants( i_schema=> i_schema );
+
+	execute immediate 'truncate table gtmp_object_privs';
+	INSERT INTO gtmp_object_privs
+	( owner,    object_name,     grantee,	 privilege,	 	grantable
+	)
+	SELECT
+	owner,    table_name,     grantee,	 privilege,	 	grantable
+	FROM dba_tab_privs
+	WHERE owner = i_schema
+	UNION ALL
+	SELECT 
+	table_owner, table_name, synonym_owner, 'SYNONYM',     null
+	FROM dba_synonyms
+	WHERE table_owner = i_schema
+	;
+	loginfo ($$plsql_unit||':'||$$plsql_line, 'inserted rows into gtmp_object_privs: '||sql%rowcount );
+
+	
+	FOR act_rec IN (
+		WITH foj_ as ( 
+			SELECT 
+			 f.owner f_own, f.object_name f_obj, f.privilege f_priv, f.grantee f_gtee, f.grantable f_admin
+			,r.owner r_own, r.object_name r_obj, r.priv      r_priv, r.grantee r_gtee, r.grantable r_admin
+			,r.request_id, r.request_type req_act
+			FROM gtmp_object_privs f
+			FULL OUTER JOIN gtmp_request_denormed r
+			ON r.owner = f.owner AND r.object_name = f.object_name AND r.priv = f.privilege AND r.grantee = f.grantee
+		)
+		--SELECT * from foj_
+		SELECT 
+		    CASE req_act 
+		    WHEN 'G' THEN
+		        CASE 
+		        WHEN f_priv IS NULL THEN 
+		            CASE r_priv
+		            WHEN 'SYNONYM' 
+		            THEN 'CREATE OR REPLACE SYNONYM '||r_gtee||'.'||r_obj||' FOR '||r_own||'.'||r_obj
+		            ELSE 'GRANT '||r_priv||' ON '||r_obj||'.' ||' TO '||r_gtee||'; '
+		            END
+		        END  
+		    WHEN 'R' THEN
+		        CASE WHEN f_priv IS NOT NULL THEN 
+		            CASE r_priv
+		            WHEN 'SYNONYM' THEN 'DROP SYNONYM '||r_gtee||'.'||r_obj
+		            ELSE 'REVOKE '||r_priv||' ON '||r_obj||'.' ||' FROM '||r_gtee
+		            END
+		        END
+		    END AS action
+		    , j.*
+		FROM foj_ j
+	) LOOP
+		null;
+	END LOOP
 END ep_process_requests;
 
 
 FUNCTION ef_export_current_grants
 -- create a script for exisint grants so they can be declared as accepted grants.
 -- non-accepted grants can be deleted manually from the script
-( ip_schema IN VARCHAR2
-  , ip_default_reason VARCHAR2 DEFAULT 'for migration'
+( i_schema IN VARCHAR2
+  , i_default_reason VARCHAR2 DEFAULT 'for migration'
 )
 RETURN CLOB
 AS
@@ -62,7 +157,7 @@ BEGIN
 		, owner, table_name as object_name, grantee, privilege
 		, substr( grantable, 1, 1) grantable
 		FROM dba_tab_privs
-		WHERE owner = ip_schema
+		WHERE owner = i_schema
 	) LOOP
 		lv_merge := lc_merge_template;
 		lv_merge :=		replace( lv_merge, '<owner>', gr_rec.owner) ;
@@ -70,7 +165,7 @@ BEGIN
 		lv_merge :=		replace( lv_merge, '<grantee_name_pattern>', gr_rec.grantee ) ;
 		lv_merge :=		replace( lv_merge, '<privilege>', gr_rec.privilege ) ;
 		lv_merge :=		replace( lv_merge, '<grantable>', gr_rec.grantable ) ;
-		lv_merge :=		replace( lv_merge, '<grant_reason>', replace( ip_default_reason, '''', '') ) ;
+		lv_merge :=		replace( lv_merge, '<grant_reason>', replace( i_default_reason, '''', '') ) ;
 
 		lv_return := CASE WHEN gr_rec.rn > 1 THEN lv_return||chr(10) END
 			||lv_merge;
