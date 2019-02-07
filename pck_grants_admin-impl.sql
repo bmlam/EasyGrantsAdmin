@@ -61,6 +61,7 @@ PROCEDURE ep_process_requests
 ( i_schema VARCHAR2
 )
 AS 
+	l_error_msg VARCHAR2(2000);
 BEGIN 
 	ep_denormalize_grants( i_schema=> i_schema );
 
@@ -83,17 +84,17 @@ BEGIN
 	
 	FOR act_rec IN (
 		WITH foj_ as ( 
-			SELECT 
-			 f.owner f_own, f.object_name f_obj, f.privilege f_priv, f.grantee f_gtee, f.grantable f_admin
+			SELECT r.request_id
+			,f.owner f_own, f.object_name f_obj, f.privilege f_priv, f.grantee f_gtee, f.grantable f_admin
 			,r.owner r_own, r.object_name r_obj, r.priv      r_priv, r.grantee r_gtee, r.grantable r_admin
-			,r.request_id, r.request_type req_act
+			,r.request_type req_type
 			FROM gtmp_object_privs f
 			FULL OUTER JOIN gtmp_request_denormed r
 			ON r.owner = f.owner AND r.object_name = f.object_name AND r.priv = f.privilege AND r.grantee = f.grantee
 		)
 		--SELECT * from foj_
 		SELECT 
-		    CASE req_act 
+		    CASE req_type 
 		    WHEN 'G' THEN
 		        CASE 
 		        WHEN f_priv IS NULL THEN 
@@ -110,11 +111,39 @@ BEGIN
 		            ELSE 'REVOKE '||r_priv||' ON '||r_obj||'.' ||' FROM '||r_gtee
 		            END
 		        END
-		    END AS action
+		    END AS ddl
 		    , j.*
 		FROM foj_ j
 	) LOOP
-		null;
+		IF act_rec.ddl  IS NOT NULL THEN 
+			BEGIN 
+				EXECUTE IMMEDIATE act_rec.ddl 
+				;
+				INSERT INTO request_process_events (
+						REQUEST_ID   ,REQUEST_TYPE  ,GRANTABLE        
+						,SUCCEEDED      ,PROCESS_TS    
+						)
+				VALUES (
+						act_rec.request_id, act_rec.req_type, act_rec.r_admin
+						,'Y',   SYSTIMESTAMP
+					);
+			EXCEPTION 
+				WHEN OTHERS THEN 
+					l_error_msg := SQLERRM;
+					INSERT INTO request_process_events (
+						REQUEST_ID   ,REQUEST_TYPE  ,GRANTABLE        
+						,SUCCEEDED      ,PROCESS_TS    
+						,FAILED_DDL 
+						,ERROR_MSG 	)
+					VALUES (
+						act_rec.request_id, act_rec.req_type, act_rec.r_admin
+						,'N',   SYSTIMESTAMP
+						,act_rec.ddl
+						,l_error_msg
+					);
+				END;
+			COMMIT;
+		END IF; -- check DDL 
 	END LOOP;
 END ep_process_requests;
 
