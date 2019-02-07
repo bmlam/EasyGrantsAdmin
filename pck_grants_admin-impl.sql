@@ -74,7 +74,7 @@ BEGIN
 	WHERE owner = i_schema
 	UNION ALL
 	SELECT 
-	table_owner, table_name, synonym_owner, 'SYNONYM',     null
+	table_owner, table_name,  owner, 'SYNONYM',     null
 	FROM dba_synonyms
 	WHERE table_owner = i_schema
 	;
@@ -100,7 +100,7 @@ BEGIN
 		            CASE r_priv
 		            WHEN 'SYNONYM' 
 		            THEN 'CREATE OR REPLACE SYNONYM '||r_gtee||'.'||r_obj||' FOR '||r_own||'.'||r_obj
-		            ELSE 'GRANT '||r_priv||' ON '||r_obj||'.' ||' TO '||r_gtee||'; '
+		            ELSE 'GRANT '||r_priv||' ON '||r_obj||'.' ||' TO '||r_gtee||CASE WHEN r_admin = 'Y' THEN ' with grant option' END
 		            END
 		        END  
 		    WHEN 'R' THEN
@@ -115,7 +115,7 @@ BEGIN
 		FROM foj_ j
 	) LOOP
 		null;
-	END LOOP
+	END LOOP;
 END ep_process_requests;
 
 

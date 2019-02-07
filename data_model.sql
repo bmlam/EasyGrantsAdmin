@@ -69,7 +69,15 @@ create global temporary table gtmp_request_denormed
 on commit preserve rows
 ;
 	
-	
+create table request_process_events
+(REQUEST_ID  NUMBER          NOT NULL 
+,REQUEST_TYPE  VARCHAR2(1)     NOT NULL 
+,PROCESS_TS   TIMESTAMP(6)    NOT NULL 
+,GRANTABLE             VARCHAR2(1)    
+,SUCCEEDED             VARCHAR2(1)    
+,FAILED_DDL            VARCHAR2(2000) 
+,ERROR_MSG             VARCHAR2(2000)
+);
 --	     package with procedures
 --	         to denormalize grant request from OGR and GRu
 --	         to validate name patterns, i.e. revoke and grants must not
