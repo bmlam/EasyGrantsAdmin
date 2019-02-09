@@ -4,7 +4,7 @@ create 	     table object_grant_requests --OGR
             , object_name               varchar2(30) NOT NULL
              ,owner               varchar2(30) NOT NULL
 	         ,grantee_name_pattern	 varchar2(100)  NOT NULL
-	         ,grantee_is_regexp char(1) CHECK( grantee_is_regexp_pattern in ('Y', 'N' ) )
+	         ,grantee_is_regexp char(1) CHECK( grantee_is_regexp in ('Y', 'N' ) )
 	         ,privilege	 varchar2(30) NOT NULL
 	         ,grantable	 char(1) CHECK( grantable in ('Y', 'N' ) )
 	         ,last_grant_req_ts timestamp

@@ -1,6 +1,11 @@
 CREATE OR REPLACE PACKAGE BODY pck_grants_admin AS
 
-PROCEDURE ep_denormalize_grants
+	gc_res_type_failed CONSTANT request_process_results.result_type%TYPE := 'Failed';
+	gc_res_type_success CONSTANT request_process_results.result_type%type := 'Success';
+	gc_res_type_skipped CONSTANT request_process_results.result_type%type := 'Skipped';
+	gc_res_type_overruled CONSTANT request_process_results.result_type%type := 'Ovrruled';
+	
+PROCEDURE ep_denormalize_grants 
 ( i_schema IN VARCHAR2
 )
 AS 
@@ -60,7 +65,8 @@ END ef_report_conflicts;
 PROCEDURE ep_process_requests
 ( i_schema VARCHAR2
 )
-AS 
+AS 	
+	l_result_type request_process_results.result_type%TYPE;
 	l_error_msg VARCHAR2(2000);
 BEGIN 
 	ep_denormalize_grants( i_schema=> i_schema );
@@ -115,35 +121,33 @@ BEGIN
 		    , j.*
 		FROM foj_ j
 	) LOOP
+		l_result_type := gc_res_type_skipped;
 		IF act_rec.ddl  IS NOT NULL THEN 
 			BEGIN 
 				EXECUTE IMMEDIATE act_rec.ddl 
 				;
-				INSERT INTO request_process_events (
-						REQUEST_ID   ,REQUEST_TYPE  ,GRANTABLE        
-						,SUCCEEDED      ,PROCESS_TS    
-						)
-				VALUES (
-						act_rec.request_id, act_rec.req_type, act_rec.r_admin
-						,'Y',   SYSTIMESTAMP
-					);
+				l_result_type := gc_res_type_success;
 			EXCEPTION 
 				WHEN OTHERS THEN 
+					l_result_type := gc_res_type_failed;
 					l_error_msg := SQLERRM;
-					INSERT INTO request_process_events (
-						REQUEST_ID   ,REQUEST_TYPE  ,GRANTABLE        
-						,SUCCEEDED      ,PROCESS_TS    
-						,FAILED_DDL 
-						,ERROR_MSG 	)
-					VALUES (
-						act_rec.request_id, act_rec.req_type, act_rec.r_admin
-						,'N',   SYSTIMESTAMP
-						,act_rec.ddl
-						,l_error_msg
-					);
 				END;
 			COMMIT;
 		END IF; -- check DDL 
+
+			INSERT INTO request_process_results (
+					req_id   ,req_type  ,grantable        
+					,result_type      ,processed_ts  
+					,error_msg
+					,failed_ddl
+					)
+			VALUES (
+					act_rec.request_id, act_rec.req_type, act_rec.r_admin
+					,l_result_type,   SYSTIMESTAMP
+					,CASE l_result_type WHEN gc_res_type_failed THEN l_error_msg END
+					,CASE l_result_type WHEN gc_res_type_failed THEN act_rec.ddl END
+				);
+		
 	END LOOP;
 END ep_process_requests;
 
@@ -204,5 +208,6 @@ END ef_export_current_grants;
 
 END;
 /
+
 
 SHOW ERRORS
