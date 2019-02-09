@@ -10,7 +10,9 @@ PROCEDURE ep_denormalize_grants
 )
 AS 
 BEGIN
-	execute immediate 'truncate table gtmp_grantable_objects';
+	--execute immediate 'truncate table gtmp_grantable_objects';
+	pck_grants_admin_private.p_trunc_table( 'gtmp_grantable_objects');
+	
 	INSERT INTO gtmp_grantable_objects
 	( owner,    object_name,     object_type
 	)
@@ -28,19 +30,22 @@ BEGIN
 		)	;
 	loginfo ($$plsql_unit||':'||$$plsql_line, 'inserted rows into gtmp_grantable_objects: '||sql%rowcount );
 
-	execute immediate 'truncate table gtmp_request_denormed';
+	pck_grants_admin_private.p_trunc_table( 'gtmp_request_denormed');
 	INSERT INTO gtmp_request_denormed
-	( owner,    object_name,     grantee,    grantable,    priv,   request_type,   request_id, based_on_regexp
+	( owner,    object_name,     grantee,    grantable,    priv,   request_type,   request_id
+	, based_on_regexp,     request_ts
 	)
-	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id, 'Y'
+	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id
+	, 'Y',		request_ts
 	FROM v_object_grant_requests r
-	JOIN sys.all_grantees g  ON REGEXP_LIKE ( g.grantee, r.grantee_name_pattern )
+	JOIN all_grantees g  ON REGEXP_LIKE ( g.grantee, r.grantee_name_pattern )
 	JOIN gtmp_grantable_objects o ON o.owner = r.owner AND o.object_name = r.object_name
 	WHERE r.grantee_is_regexp = 'Y'
 	UNION ALL
-	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id, 'N'
+	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id
+	, 'N',    request_ts
 	FROM v_object_grant_requests r
-	JOIN sys.all_grantees g  ON g.grantee = r.grantee_name_pattern 
+	JOIN all_grantees g  ON g.grantee = r.grantee_name_pattern 
 	JOIN gtmp_grantable_objects o ON o.owner = r.owner AND o.object_name = r.object_name
 	WHERE r.grantee_is_regexp = 'N'
 	;
@@ -69,10 +74,13 @@ AS
 	l_result_type request_process_results.result_type%TYPE;
 	l_error_msg VARCHAR2(2000);
 	l_record_cnt NUMBER := 0;
+	l_skip_cnt NUMBER := 0;
+	lrec_result  request_process_results%ROWTYPE;
 BEGIN 
 	ep_denormalize_grants( i_schema=> i_schema );
 
-	execute immediate 'truncate table gtmp_object_privs';
+	pck_grants_admin_private.p_trunc_table( 'gtmp_object_privs');
+	
 	INSERT INTO gtmp_object_privs
 	( owner,    object_name,     grantee,	 privilege,	 	grantable
 	)
@@ -90,74 +98,50 @@ BEGIN
 
 	
 	FOR act_rec IN (
-		SELECT * FROM f_fact_req_full_outer_join
-	/*	
-		WITH foj_ as ( 
-			SELECT r.request_id
-			,f.owner f_own, f.object_name f_obj, f.privilege f_priv, f.grantee f_gtee, f.grantable f_admin
-			,r.owner r_own, r.object_name r_obj, r.priv      r_priv, r.grantee r_gtee, r.grantable r_admin
-			,r.request_type req_type
-			FROM gtmp_object_privs f
-			FULL OUTER JOIN gtmp_request_denormed r
-			ON r.owner = f.owner AND r.object_name = f.object_name AND r.priv = f.privilege AND r.grantee = f.grantee
-		)
-		--SELECT * from foj_
-		SELECT 
-		    CASE req_type 
-		    WHEN 'G' THEN
-		        CASE 
-		        WHEN f_priv IS NULL THEN 
-		            CASE r_priv
-		            WHEN 'SYNONYM' 
-		            THEN 'CREATE OR REPLACE SYNONYM '||r_gtee||'.'||r_obj||' FOR '||r_own||'.'||r_obj
-		            ELSE 'GRANT '||r_priv||' ON '||r_obj||'.' ||' TO '||r_gtee||CASE WHEN r_admin = 'Y' THEN ' with grant option' END
-		            END
-		        END  
-		    WHEN 'R' THEN
-		        CASE WHEN f_priv IS NOT NULL THEN 
-		            CASE r_priv
-		            WHEN 'SYNONYM' THEN 'DROP SYNONYM '||r_gtee||'.'||r_obj
-		            ELSE 'REVOKE '||r_priv||' ON '||r_obj||'.' ||' FROM '||r_gtee
-		            END
-		        END
-		    END AS ddl
-		    , j.*
-		FROM foj_ j
-		*/ 
+		SELECT * FROM V_fact_req_full_outer_join
 	) LOOP
-	
-	EXIT;
-		l_result_type := gc_res_type_skipped;
-		l_record_cnt := l_record_cnt + 1;
-		IF act_rec.ddl  IS NOT NULL THEN 
-			BEGIN 
-				EXECUTE IMMEDIATE act_rec.ddl 
-				;
-				l_result_type := gc_res_type_success;
-			EXCEPTION 
-				WHEN OTHERS THEN 
-					l_result_type := gc_res_type_failed;
-					l_error_msg := SQLERRM;
-				END;
-			COMMIT;
-		END IF; -- check DDL 
+		IF act_rec.prio > 1 THEN 
+			l_result_type := gc_res_type_overruled;
+		ELSE
+			IF act_rec.ddl  IS NULL THEN 
+				l_result_type := gc_res_type_skipped;
+				l_skip_cnt := l_skip_cnt + 1;
+			ELSE
+				BEGIN 
+					IF act_rec.r_priv = 'SYNONYM' THEN -- package owner privs for CREATE/DROP ANY synonym
+						pck_grants_admin_private.p_execute_synonym_ddl( act_rec.ddl );
+					ELSE
+						EXECUTE IMMEDIATE act_rec.ddl ;
+					END IF; -- check is synonym
+					
+					l_result_type := gc_res_type_success;
+				EXCEPTION 
+					WHEN OTHERS THEN 
+						l_result_type := gc_res_type_failed;
+						l_error_msg := SQLERRM;
+					END;
+				COMMIT;
+			END IF; -- check DDL 
+		END IF;  -- check skipped
 
-			INSERT INTO request_process_results (
-					req_id   ,req_type  ,grantable        
-					,result_type      ,processed_ts  
-					,error_msg
-					,failed_ddl
-					)
-			VALUES (
-					act_rec.request_id, act_rec.req_type, act_rec.r_admin
-					,l_result_type,   SYSTIMESTAMP
-					,CASE l_result_type WHEN gc_res_type_failed THEN l_error_msg END
-					,CASE l_result_type WHEN gc_res_type_failed THEN act_rec.ddl END
-				);
+		IF l_result_type <> gc_res_type_skipped THEN 
+			lrec_result.req_id    :=  act_rec.request_id;
+			lrec_result.req_type   :=  act_rec.req_type;
+			lrec_result.grantable         :=  act_rec.r_admin;
+			lrec_result.result_type       :=  l_result_type;
+			lrec_result.processed_ts   :=  SYSTIMESTAMP;
+			lrec_result.error_msg :=  CASE l_result_type WHEN gc_res_type_failed THEN l_error_msg END;
+			lrec_result.failed_ddl :=  CASE l_result_type WHEN gc_res_type_failed THEN act_rec.ddl END;
+			lrec_result.overruled_by_req_id :=  CASE l_result_type WHEN gc_res_type_overruled THEN act_rec.winner_req_id END;
+
+			pck_grants_admin_private.p_log_result( lrec_result );
+		END IF; -- CHECK skipped
 		
+		l_record_cnt := l_record_cnt + 1;
 	END LOOP;
 	
 	loginfo ($$plsql_unit||':'||$$plsql_line, 'l_record_cnt: '||l_record_cnt );
+	loginfo ($$plsql_unit||':'||$$plsql_line, 'l_skip_cnt: '||l_skip_cnt );
 
 END ep_process_requests;
 

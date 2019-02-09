@@ -1,4 +1,6 @@
-CREATE OR REPLACE PACKAGE pck_grants_admin AS
+CREATE OR REPLACE PACKAGE pck_grants_admin 
+AUTHID CURRENT_USER
+AS
 
 FUNCTION ef_export_current_grants
 -- create a script for exisint grants so they can be declared as accepted grants.

@@ -57,6 +57,7 @@ table gtmp_request_denormed
 	         ,request_type 	char(1) CHECK( request_type in ('G', 'R' ) )
              ,request_id    NUMBER NOT NULL 
              ,based_on_regexp CHAR(1) NOT NULL 
+             ,request_ts timestamp
 )
 --on commit preserve rows
 ;
@@ -79,7 +80,7 @@ create table request_process_results
 --	validation fails
 --	         to process the requests which also merge into the DUG
 
---create or replace view v_object_grant_requests  as
+create or replace view v_object_grant_requests  as
 WITH add_flag_ AS (
 SELECT id, object_name, owner
   ,grantee_name_pattern, grantee_is_regexp
@@ -97,15 +98,22 @@ SELECT a.*
   ,CASE request_type WHEN 'G' THEN last_grant_req_ts WHEN 'R' THEN last_revoke_req_ts END as request_ts
 FROM add_flag_ a
 ;
-;
 
---create or replace view f_fact_req_full_outer_join as 
+--DROP VIEW F_fact_req_full_outer_join;
+create or replace view V_fact_req_full_outer_join as 
 		WITH foj_ as ( 
 			SELECT r.request_id
             ,r.based_on_regexp regex
 			,r.request_type req_type
-            ,r.last_grant_req_ts gr_req_ts
-            ,r.last_revoke_req_ts rv_req_ts
+            ,r.request_ts
+            ,row_number() 
+                OVER (PARTITION BY r.owner, r.object_name, r.priv, r.grantee
+                    ORDER BY CASE r.based_on_regexp WHEN 'N' THEN 1 ELSE 2 END, r.request_ts DESC ) 
+             AS prio
+           ,first_value( r.request_id) 
+                OVER (PARTITION BY r.owner, r.object_name, r.priv, r.grantee
+                    ORDER BY CASE r.based_on_regexp WHEN 'N' THEN 1 ELSE 2 END, r.request_ts DESC ) 
+            AS winner_req_id
 			,f.owner f_own, f.object_name f_obj, f.privilege f_priv, f.grantee f_gtee, f.grantable f_admin
 			,r.owner r_own, r.object_name r_obj, r.priv      r_priv, r.grantee r_gtee, r.grantable r_admin
 			FROM gtmp_object_privs f
@@ -114,7 +122,8 @@ FROM add_flag_ a
 		)
 		--SELECT * from foj_
 		SELECT 
-		    CASE req_type 
+		    j.*
+		    ,CASE req_type 
 		    WHEN 'G' THEN
 		        CASE 
 		        WHEN f_priv IS NULL THEN 
@@ -132,7 +141,6 @@ FROM add_flag_ a
 		            END
 		        END
 		    END AS ddl
-		    , j.*
 		FROM foj_ j
-order by coalesce(f_own, r_own), coalesce(f_obj, r_obj), coalesce( f_gtee, r_gtee), coalesce(f_priv, r_priv)        
+order by coalesce(r_own, f_own), coalesce(r_obj, f_obj), coalesce(r_priv, f_priv), coalesce( r_gtee, f_gtee)        
 ;
