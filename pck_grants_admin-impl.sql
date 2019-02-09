@@ -30,15 +30,15 @@ BEGIN
 
 	execute immediate 'truncate table gtmp_request_denormed';
 	INSERT INTO gtmp_request_denormed
-	( owner,    object_name,     grantee,    grantable,    priv,   request_type,   request_id
+	( owner,    object_name,     grantee,    grantable,    priv,   request_type,   request_id, based_on_regexp
 	)
-	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id
+	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id, 'Y'
 	FROM v_object_grant_requests r
 	JOIN sys.all_grantees g  ON REGEXP_LIKE ( g.grantee, r.grantee_name_pattern )
 	JOIN gtmp_grantable_objects o ON o.owner = r.owner AND o.object_name = r.object_name
 	WHERE r.grantee_is_regexp = 'Y'
 	UNION ALL
-	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id
+	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id, 'N'
 	FROM v_object_grant_requests r
 	JOIN sys.all_grantees g  ON g.grantee = r.grantee_name_pattern 
 	JOIN gtmp_grantable_objects o ON o.owner = r.owner AND o.object_name = r.object_name
@@ -68,6 +68,7 @@ PROCEDURE ep_process_requests
 AS 	
 	l_result_type request_process_results.result_type%TYPE;
 	l_error_msg VARCHAR2(2000);
+	l_record_cnt NUMBER := 0;
 BEGIN 
 	ep_denormalize_grants( i_schema=> i_schema );
 
@@ -89,6 +90,8 @@ BEGIN
 
 	
 	FOR act_rec IN (
+		SELECT * FROM f_fact_req_full_outer_join
+	/*	
 		WITH foj_ as ( 
 			SELECT r.request_id
 			,f.owner f_own, f.object_name f_obj, f.privilege f_priv, f.grantee f_gtee, f.grantable f_admin
@@ -120,8 +123,12 @@ BEGIN
 		    END AS ddl
 		    , j.*
 		FROM foj_ j
+		*/ 
 	) LOOP
+	
+	EXIT;
 		l_result_type := gc_res_type_skipped;
+		l_record_cnt := l_record_cnt + 1;
 		IF act_rec.ddl  IS NOT NULL THEN 
 			BEGIN 
 				EXECUTE IMMEDIATE act_rec.ddl 
@@ -149,6 +156,9 @@ BEGIN
 				);
 		
 	END LOOP;
+	
+	loginfo ($$plsql_unit||':'||$$plsql_line, 'l_record_cnt: '||l_record_cnt );
+
 END ep_process_requests;
 
 

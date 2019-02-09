@@ -14,8 +14,8 @@ create 	     table object_grant_requests --OGR
 		,request_last_executed timestamp
 );
 
-create or replace view v_object_grant_requests 
-as
+--create or replace view v_object_grant_requests  as
+WITH add_flag_ AS (
 SELECT id, object_name, owner
   ,grantee_name_pattern, grantee_is_regexp
   , privilege
@@ -27,6 +27,11 @@ SELECT id, object_name, owner
   , last_revoke_req_ts
   , grant_reason, revoke_reason
 FROM object_grant_requests
+)
+SELECT a.*
+  ,CASE request_type WHEN 'G' THEN last_grant_req_ts WHEN 'R' THEN last_revoke_req_ts END as request_ts
+FROM add_flag_ a
+;
 ;
 --drop 	 table detected_unrequested_grants ;
 create 	 table detected_unrequested_grants -- DUG
@@ -43,20 +48,25 @@ create 	 table detected_unrequested_grants -- DUG
 --	         active_flg
 --	         actived_dt
 	
-create global temporary table gtmp_grantable_objects
-on commit preserve rows
+--drop table gtmp_grantable_objects;
+create /*permanent during testingglobal temporary  */ 
+table gtmp_grantable_objects
+--on commit preserve rows
 as select owner, object_name, object_type from all_objects where 1=0
 --for dba_objects of relevant types
 ;
-drop table gtmp_request_denormed ;
-create global temporary table gtmp_object_privs
-on commit preserve rows
+--drop table gtmp_request_denormed ;
+create /*permanent during testingglobal temporary  */ 
+table gtmp_object_privs
+--on commit preserve rows
 --for dba_tab_privs for relevant grantees and 	relevant object types
 as select table_schema as owner, table_name as object_name, grantee, privilege, grantable
 from all_tab_privs where 1=0
 ;
 
-create global temporary table gtmp_request_denormed
+--DROP TABLE gtmp_request_denormed;
+create /*permanent during testingglobal temporary  */ 
+table gtmp_request_denormed
 -- to stored denormalized requests
 (	         object_name	 varchar2(30) NOT NULL
 	         ,owner               varchar2(30) NOT NULL
@@ -65,16 +75,19 @@ create global temporary table gtmp_request_denormed
 	         ,priv	 varchar2(30) NOT NULL
 	         ,request_type 	char(1) CHECK( request_type in ('G', 'R' ) )
              ,request_id    NUMBER NOT NULL 
+             ,based_on_regexp CHAR(1) NOT NULL 
 )
-on commit preserve rows
+--on commit preserve rows
 ;
 	
-create table request_process_events
-(REQUEST_ID  NUMBER          NOT NULL 
-,REQUEST_TYPE  VARCHAR2(1)     NOT NULL 
-,PROCESS_TS   TIMESTAMP(6)    NOT NULL 
+create table request_process_results
+-- consider auto partition by timestamp 
+(REQ_ID  NUMBER             NOT NULL 
+,REQ_TYPE  VARCHAR2(1)      NOT NULL 
 ,GRANTABLE             VARCHAR2(1)    
-,SUCCEEDED             VARCHAR2(1)    
+,PROCESSed_TS   TIMESTAMP         NOT NULL 
+,result_type           VARCHAR2(8)    NOT NULL 
+,overruled_by_req_id    NUMBER 
 ,FAILED_DDL            VARCHAR2(2000) 
 ,ERROR_MSG             VARCHAR2(2000)
 );
@@ -84,3 +97,41 @@ create table request_process_events
 --	exist for the same object and same grantee. throw errors check
 --	validation fails
 --	         to process the requests which also merge into the DUG
+
+--create or replace view f_fact_req_full_outer_join as 
+		WITH foj_ as ( 
+			SELECT r.request_id
+            ,r.based_on_regexp regex
+			,r.request_type req_type
+            ,r.last_grant_req_ts gr_req_ts
+            ,r.last_revoke_req_ts rv_req_ts
+			,f.owner f_own, f.object_name f_obj, f.privilege f_priv, f.grantee f_gtee, f.grantable f_admin
+			,r.owner r_own, r.object_name r_obj, r.priv      r_priv, r.grantee r_gtee, r.grantable r_admin
+			FROM gtmp_object_privs f
+			FULL OUTER JOIN gtmp_request_denormed r
+			ON r.owner = f.owner AND r.object_name = f.object_name AND r.priv = f.privilege AND r.grantee = f.grantee
+		)
+		--SELECT * from foj_
+		SELECT 
+		    CASE req_type 
+		    WHEN 'G' THEN
+		        CASE 
+		        WHEN f_priv IS NULL THEN 
+		            CASE r_priv
+		            WHEN 'SYNONYM' 
+		            THEN 'CREATE OR REPLACE SYNONYM '||r_gtee||'.'||r_obj||' FOR '||r_own||'.'||r_obj
+		            ELSE 'GRANT '||r_priv||' ON '||r_own||'.'||r_obj ||' TO '||r_gtee||CASE WHEN r_admin = 'Y' THEN ' with grant option' END
+		            END
+		        END  
+		    WHEN 'R' THEN
+		        CASE WHEN f_priv IS NOT NULL THEN 
+		            CASE r_priv
+		            WHEN 'SYNONYM' THEN 'DROP SYNONYM '||r_gtee||'.'||r_obj
+		            ELSE 'REVOKE '||r_priv||' ON '||r_own||'.'||r_obj ||' FROM '||r_gtee
+		            END
+		        END
+		    END AS ddl
+		    , j.*
+		FROM foj_ j
+order by coalesce(f_own, r_own), coalesce(f_obj, r_obj), coalesce( f_gtee, r_gtee), coalesce(f_priv, r_priv)        
+;
