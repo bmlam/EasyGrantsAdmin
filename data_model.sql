@@ -14,25 +14,6 @@ create 	     table object_grant_requests --OGR
 		,request_last_executed timestamp
 );
 
---create or replace view v_object_grant_requests  as
-WITH add_flag_ AS (
-SELECT id, object_name, owner
-  ,grantee_name_pattern, grantee_is_regexp
-  , privilege
-  , CASE WHEN last_grant_req_ts > last_revoke_req_ts OR last_revoke_req_ts IS NULL THEN 'G'
-    ELSE 'R'
-    END  AS REQUEST_TYPE
-  , grantable
-  , last_grant_req_ts
-  , last_revoke_req_ts
-  , grant_reason, revoke_reason
-FROM object_grant_requests
-)
-SELECT a.*
-  ,CASE request_type WHEN 'G' THEN last_grant_req_ts WHEN 'R' THEN last_revoke_req_ts END as request_ts
-FROM add_flag_ a
-;
-;
 --drop 	 table detected_unrequested_grants ;
 create 	 table detected_unrequested_grants -- DUG
 (	        id NUMBER generated always as identity
@@ -97,6 +78,26 @@ create table request_process_results
 --	exist for the same object and same grantee. throw errors check
 --	validation fails
 --	         to process the requests which also merge into the DUG
+
+--create or replace view v_object_grant_requests  as
+WITH add_flag_ AS (
+SELECT id, object_name, owner
+  ,grantee_name_pattern, grantee_is_regexp
+  , privilege
+  , CASE WHEN last_grant_req_ts > last_revoke_req_ts OR last_revoke_req_ts IS NULL THEN 'G'
+    ELSE 'R'
+    END  AS REQUEST_TYPE
+  , grantable
+  , last_grant_req_ts
+  , last_revoke_req_ts
+  , grant_reason, revoke_reason
+FROM object_grant_requests
+)
+SELECT a.*
+  ,CASE request_type WHEN 'G' THEN last_grant_req_ts WHEN 'R' THEN last_revoke_req_ts END as request_ts
+FROM add_flag_ a
+;
+;
 
 --create or replace view f_fact_req_full_outer_join as 
 		WITH foj_ as ( 
