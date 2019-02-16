@@ -1,5 +1,7 @@
 CREATE OR REPLACE PACKAGE BODY pck_grants_admin AS
 
+	gc_nl CONSTANT VARCHAR2(2) := chr(10);
+	
 	gc_res_type_failed CONSTANT request_process_results.result_type%TYPE := 'Failed';
 	gc_res_type_success CONSTANT request_process_results.result_type%type := 'Success';
 	gc_res_type_skipped CONSTANT request_process_results.result_type%type := 'Skipped';
@@ -207,7 +209,7 @@ BEGIN
 		lv_merge :=		replace( lv_merge, '<grantable>', gr_rec.grantable ) ;
 		lv_merge :=		replace( lv_merge, '<grant_reason>', replace( i_default_reason, '''', '') ) ;
 
-		lv_return := CASE WHEN gr_rec.rn > 1 THEN lv_return||chr(10) END
+		lv_return := CASE WHEN gr_rec.rn > 1 THEN lv_return||gc_nl END
 			||lv_merge;
 	END LOOP;
 	RETURN  lv_return;
@@ -215,6 +217,7 @@ END ef_export_current_grants;
 
 FUNCTION ef_export_request_meta
 ( i_schema IN VARCHAR2
+, i_compact IN NUMBER DEFAULT 1
 )
 RETURN CLOB
 AS
@@ -232,7 +235,9 @@ ON (src.owner = tgt.owner and src.object_name = tgt.object_name and src.grantee_
 and src.grantee_is_regexp = tgt.grantee_is_regexp and src.privilege = tgt.privilege)
 WHEN NOT MATCHED THEN
 INSERT ( owner, object_name, grantee_name_pattern, grantee_is_regexp
-,privilege, grantable,  grant_reason,last_grant_req_ts
+,privilege, grantable
+,grant_reason,  last_grant_req_ts
+,revoke_reason,  last_revoke_req_ts
 ) VALUES
 ( src.owner, src.object_name, src.grantee_name_pattern, src.grantee_is_regexp
 ,src.privilege, src.grantable 
@@ -240,37 +245,96 @@ INSERT ( owner, object_name, grantee_name_pattern, grantee_is_regexp
 , revoke_reason, last_revoke_req_ts 
 )
 WHEN MATCHED THEN UPDATE
-SET grantable = src.grantable, last_revoke_req_ts = null, last_grant_req_ts = systimestamp
+SET grantable = src.grantable
 ,grant_reason = src.grant_reason, last_grant_req_ts = src.last_grant_req_ts
 ,revoke_reason= src.revoke_reason, last_revoke_req_ts = src.last_revoke_req_ts
 ;
 ]';
+
+	lc_merge_template_ua_select CONSTANT VARCHAR2(4000) :=
+q'[UNION ALL SELECT '<owner>' ,'<object_name>' , '<grantee_name_pattern>', '<grantee_is_regexp>'  , '<privilege>' , '<grantable>' , <last_revoke_req_ts> , '<revoke_reason>' , <last_grant_req_ts>   , '<grant_reason>' FROM dual
+]';
+	lc_merge_template_header CONSTANT VARCHAR2(4000) :=
+q'[merge into object_grant_requests tgt
+using (
+select '.' owner,'.' object_name, '.' grantee_name_pattern, '.'  grantee_is_regexp, '.' privilege, '.' grantable, CAST (NULL AS TIMESTAMP) last_revoke_req_ts, '.' revoke_reason, CAST (NULL AS TIMESTAMP)  last_grant_req_ts , '<grant_reason>' grant_reason FROM DUAL WHERE 1=0
+]';
+
+	lc_merge_template_trailer CONSTANT VARCHAR2(4000) :=
+q'[ ) src
+ON (src.owner = tgt.owner and src.object_name = tgt.object_name and src.grantee_name_pattern = tgt.grantee_name_pattern
+and src.grantee_is_regexp = tgt.grantee_is_regexp and src.privilege = tgt.privilege)
+WHEN NOT MATCHED THEN
+INSERT ( owner, object_name, grantee_name_pattern, grantee_is_regexp
+,privilege, grantable
+, grant_reason, last_grant_req_ts
+, revoke_reason, last_revoke_req_ts 
+) VALUES
+( src.owner, src.object_name, src.grantee_name_pattern, src.grantee_is_regexp
+,src.privilege, src.grantable 
+, grant_reason, last_grant_req_ts
+, revoke_reason, last_revoke_req_ts 
+)
+WHEN MATCHED THEN UPDATE
+SET grantable = src.grantable
+,grant_reason = src.grant_reason, last_grant_req_ts = src.last_grant_req_ts
+,revoke_reason= src.revoke_reason, last_revoke_req_ts = src.last_revoke_req_ts
+;
+]';
+	
 	lv_return CLOB;
+	lv_all_ua_selects CLOB;
+	lv_ua_select VARCHAR2(4000);
 	lv_merge VARCHAR2(4000);
+	lv_do_compact BOOLEAN := i_compact > 0 ;
 BEGIN
 	FOR gr_rec IN (
 		select rownum rn
 		, r.*
 		FROM object_grant_requests r
 		WHERE owner = i_schema
-		  and rownum <= 1 -- during test 
+		  --and rownum <= 1 -- during test 
+		ORDER BY owner, object_name, grantee_name_pattern, privilege
 	) LOOP
-		lv_merge := gc_merge_template_export;
-		lv_merge :=		replace( lv_merge, '<owner>', gr_rec.owner) ;
-		lv_merge :=		replace( lv_merge, '<object_name>', gr_rec.object_name ) ;
-		lv_merge :=		replace( lv_merge, '<grantee_name_pattern>', gr_rec.grantee_name_pattern ) ;
-		lv_merge :=		replace( lv_merge, '<grantee_is_regexp>', gr_rec.grantee_is_regexp ) ;
-		lv_merge :=		replace( lv_merge, '<privilege>', gr_rec.privilege ) ;
-		lv_merge :=		replace( lv_merge, '<grantable>', gr_rec.grantable ) ;
-		lv_merge :=		replace( lv_merge, '<revoke_reason>', gr_rec.revoke_reason) ;
-		lv_merge :=		replace( lv_merge, '<last_revoke_req_ts>', gf_to_date_string( gr_rec.last_revoke_req_ts) ) ;
-		lv_merge :=		replace( lv_merge, '<grant_reason>', gr_rec.grant_reason) ;
-		lv_merge :=		replace( lv_merge, '<last_grant_req_ts>', gf_to_date_string( gr_rec.last_grant_req_ts) ) ;
+		IF lv_do_compact THEN 
+			IF gr_rec.rn = 1 THEN 
+				lv_return := lc_merge_template_header;
+			END IF;
+			lv_ua_select := lc_merge_template_ua_select;
+			lv_ua_select :=		replace( lv_ua_select, '<owner>', gr_rec.owner) ;
+			lv_ua_select :=		replace( lv_ua_select, '<object_name>', gr_rec.object_name ) ;
+			lv_ua_select :=		replace( lv_ua_select, '<grantee_name_pattern>', gr_rec.grantee_name_pattern ) ;
+			lv_ua_select :=		replace( lv_ua_select, '<grantee_is_regexp>', gr_rec.grantee_is_regexp ) ;
+			lv_ua_select :=		replace( lv_ua_select, '<privilege>', gr_rec.privilege ) ;
+			lv_ua_select :=		replace( lv_ua_select, '<grantable>', gr_rec.grantable ) ;
+			lv_ua_select :=		replace( lv_ua_select, '<revoke_reason>', gr_rec.revoke_reason) ;
+			lv_ua_select :=		replace( lv_ua_select, '<last_revoke_req_ts>', gf_to_date_string( gr_rec.last_revoke_req_ts) ) ;
+			lv_ua_select :=		replace( lv_ua_select, '<grant_reason>', gr_rec.grant_reason) ;
+			lv_ua_select :=		replace( lv_ua_select, '<last_grant_req_ts>', gf_to_date_string( gr_rec.last_grant_req_ts) ) ;
+			lv_all_ua_selects := CASE WHEN gr_rec.rn > 1 THEN lv_all_ua_selects/*||gc_nl: newline already there*/ END || lv_ua_select;
+		ELSE 
+			lv_merge := gc_merge_template_export;
+			lv_merge :=		replace( lv_merge, '<owner>', gr_rec.owner) ;
+			lv_merge :=		replace( lv_merge, '<object_name>', gr_rec.object_name ) ;
+			lv_merge :=		replace( lv_merge, '<grantee_name_pattern>', gr_rec.grantee_name_pattern ) ;
+			lv_merge :=		replace( lv_merge, '<grantee_is_regexp>', gr_rec.grantee_is_regexp ) ;
+			lv_merge :=		replace( lv_merge, '<privilege>', gr_rec.privilege ) ;
+			lv_merge :=		replace( lv_merge, '<grantable>', gr_rec.grantable ) ;
+			lv_merge :=		replace( lv_merge, '<revoke_reason>', gr_rec.revoke_reason) ;
+			lv_merge :=		replace( lv_merge, '<last_revoke_req_ts>', gf_to_date_string( gr_rec.last_revoke_req_ts) ) ;
+			lv_merge :=		replace( lv_merge, '<grant_reason>', gr_rec.grant_reason) ;
+			lv_merge :=		replace( lv_merge, '<last_grant_req_ts>', gf_to_date_string( gr_rec.last_grant_req_ts) ) ;
 
-		lv_return := CASE WHEN gr_rec.rn > 1 THEN lv_return||chr(10) END
-			||lv_merge;
+			lv_return := CASE WHEN gr_rec.rn > 1 THEN lv_return||gc_nl END
+				||lv_merge;
+		END IF; -- lv_do_compact
 	END LOOP;
-	RETURN  lv_return;
+	
+	IF lv_do_compact THEN 
+		lv_return := lv_return || gc_nl || lv_all_ua_selects || gc_nl || lc_merge_template_trailer;
+	END IF; -- lv_do_compact
+
+	RETURN  lv_return||gc_nl||'COMMIT;'||gc_nl;
 END ef_export_request_meta;
 
 

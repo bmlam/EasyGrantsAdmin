@@ -16,11 +16,11 @@ INSERT ( owner, object_name, grantee_name_pattern, grantee_is_regexp
 ,privilege, grantable,  grant_reason,last_grant_req_ts
 ) VALUES
 ( src.owner, src.object_name, src.grantee_name_pattern, src.grantee_is_regexp
-,src.privilege, src.grantable , '<grant_reason>',systimestamp
+,src.privilege, src.grantable , 'initial grant',systimestamp
 )
 WHEN MATCHED THEN UPDATE
 SET grantable = src.grantable, last_revoke_req_ts = null, last_grant_req_ts = systimestamp
-,grant_reason = '<grant_reason>'
+,grant_reason = 'initial grant'
 ;
 
 -- revoke example 
@@ -42,12 +42,12 @@ INSERT ( owner, object_name, grantee_name_pattern, grantee_is_regexp
 ,last_revoke_req_ts
 ) VALUES
 ( src.owner, src.object_name, src.grantee_name_pattern, src.grantee_is_regexp
-,src.privilege, src.grantable , '<grant_reason>'
+,src.privilege, src.grantable , 'initial grant'
 ,systimestamp
 )
 WHEN MATCHED THEN UPDATE
 SET grantable = src.grantable, last_revoke_req_ts = systimestamp
-,grant_reason = '<grant_reason>'
+,grant_reason = 'initial grant'
 ;
 
 COMMIT;

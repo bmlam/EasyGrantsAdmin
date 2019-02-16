@@ -13,6 +13,7 @@ RETURN CLOB
 
 FUNCTION ef_export_request_meta
 ( i_schema IN VARCHAR2
+, i_compact IN NUMBER DEFAULT 1
 )
 RETURN CLOB
 ;
