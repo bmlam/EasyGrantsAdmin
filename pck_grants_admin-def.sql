@@ -11,6 +11,12 @@ FUNCTION ef_export_current_grants
 RETURN CLOB
 ;
 
+FUNCTION ef_export_request_meta
+( i_schema IN VARCHAR2
+)
+RETURN CLOB
+;
+
 PROCEDURE ep_denormalize_grants
 --to denormalize grant request from OGR and GRu
 ( i_schema IN VARCHAR2

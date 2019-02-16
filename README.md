@@ -74,7 +74,7 @@ Delevopers on a project will simply create one single script, e.g. MY_PROJECT-GR
 
 As mentioned, it is sufficient for each project to use only one single script for grants and synonyms. Now you might notice that it would be difficult to audit who has requested the grants and revokes. Fear not! This information is in OBJECT_GRANT_REQUESTS table, and if want to have the information versioned controlled in one single file AUTOMATICALLY, run 
 
-  SELECT pck_grants_admin.f_export_request_metadate FROM DUAL;
+  SELECT pck_grants_admin.f_export_request_meta FROM DUAL;
   
 The result will be a CLOB containing the MERGE statements into OBJEct_GRANTS_RQUESTS. Spool the CLOB and commit it to your repository - of course you should automate this in your deployment workflow. For example a robot can spool it directly to a path in your repository and commit it. Tracking of grants in repository done. Easy!
 

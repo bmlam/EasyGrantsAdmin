@@ -4,7 +4,40 @@ CREATE OR REPLACE PACKAGE BODY pck_grants_admin AS
 	gc_res_type_success CONSTANT request_process_results.result_type%type := 'Success';
 	gc_res_type_skipped CONSTANT request_process_results.result_type%type := 'Skipped';
 	gc_res_type_overruled CONSTANT request_process_results.result_type%type := 'Ovrruled';
+
+	gc_merge_template_migr CONSTANT VARCHAR2(2000) :=
+q'[merge into object_grant_requests tgt
+using (
+select '<owner>' owner,'<object_name>' object_name, '<grantee_name_pattern>' grantee_name_pattern
+, 'N'  grantee_is_regexp, '<privilege>' privilege, '<grantable>' grantable
+from dual
+) src
+ON (src.owner = tgt.owner and src.object_name = tgt.object_name and src.grantee_name_pattern = tgt.grantee_name_pattern
+and src.grantee_is_regexp = tgt.grantee_is_regexp and src.privilege = tgt.privilege)
+WHEN NOT MATCHED THEN
+INSERT ( owner, object_name, grantee_name_pattern, grantee_is_regexp
+,privilege, grantable,  grant_reason,last_grant_req_ts
+) VALUES
+( src.owner, src.object_name, src.grantee_name_pattern, src.grantee_is_regexp
+,src.privilege, src.grantable , '<grant_reason>',systimestamp
+)
+WHEN MATCHED THEN UPDATE
+SET grantable = src.grantable, last_revoke_req_ts = null, last_grant_req_ts = systimestamp
+,grant_reason = '<grant_reason>'
+;
+]';
 	
+
+	
+FUNCTION gf_to_date_string( i_date DATE ) 
+RETURN VARCHAR2
+AS
+	lv_return VARCHAR2(100);
+	lc_mask   CONSTANT VARCHAR2(100) := 'YYYY-MM-DD HH24:MI:SS';
+BEGIN
+	RETURN 'TO_DATE( '''||TO_CHAR( i_date, lc_mask)||''', '''||lc_mask||''')';
+END gf_to_date_string;
+
 PROCEDURE ep_denormalize_grants 
 ( i_schema IN VARCHAR2
 )
@@ -143,6 +176,7 @@ BEGIN
 	loginfo ($$plsql_unit||':'||$$plsql_line, 'l_record_cnt: '||l_record_cnt );
 	loginfo ($$plsql_unit||':'||$$plsql_line, 'l_skip_cnt: '||l_skip_cnt );
 
+	
 END ep_process_requests;
 
 
@@ -155,27 +189,6 @@ FUNCTION ef_export_current_grants
 RETURN CLOB
 AS
 	lv_return CLOB;
-	lc_merge_template CONSTANT VARCHAR2(2000) :=
-q'[merge into object_grant_requests tgt
-using (
-select '<owner>' owner,'<object_name>' object_name, '<grantee_name_pattern>' grantee_name_pattern
-, 'N'  grantee_is_regexp, '<privilege>' privilege, '<grantable>' grantable
-from dual
-) src
-ON (src.owner = tgt.owner and src.object_name = tgt.object_name and src.grantee_name_pattern = tgt.grantee_name_pattern
-and src.grantee_is_regexp = tgt.grantee_is_regexp and src.privilege = tgt.privilege)
-WHEN NOT MATCHED THEN
-INSERT ( owner, object_name, grantee_name_pattern, grantee_is_regexp
-,privilege, grantable,  grant_reason,last_grant_req_ts
-) VALUES
-( src.owner, src.object_name, src.grantee_name_pattern, src.grantee_is_regexp
-,src.privilege, src.grantable , '<grant_reason>',systimestamp
-)
-WHEN MATCHED THEN UPDATE
-SET grantable = src.grantable, last_revoke_req_ts = null, last_grant_req_ts = systimestamp
-,grant_reason = '<grant_reason>'
-;
-]';
 
 	lv_merge VARCHAR2(4000);
 BEGIN
@@ -186,7 +199,7 @@ BEGIN
 		FROM dba_tab_privs
 		WHERE owner = i_schema
 	) LOOP
-		lv_merge := lc_merge_template;
+		lv_merge := gc_merge_template_migr;
 		lv_merge :=		replace( lv_merge, '<owner>', gr_rec.owner) ;
 		lv_merge :=		replace( lv_merge, '<object_name>', gr_rec.object_name ) ;
 		lv_merge :=		replace( lv_merge, '<grantee_name_pattern>', gr_rec.grantee ) ;
@@ -199,6 +212,67 @@ BEGIN
 	END LOOP;
 	RETURN  lv_return;
 END ef_export_current_grants;
+
+FUNCTION ef_export_request_meta
+( i_schema IN VARCHAR2
+)
+RETURN CLOB
+AS
+	gc_merge_template_export
+ CONSTANT VARCHAR2(2000) :=
+q'[merge into object_grant_requests tgt
+using (
+select '<owner>' owner,'<object_name>' object_name, '<grantee_name_pattern>' grantee_name_pattern
+, '<grantee_is_regexp>'  grantee_is_regexp, '<privilege>' privilege, '<grantable>' grantable
+, <last_revoke_req_ts> last_revoke_req_ts, '<revoke_reason>' revoke_reason
+, <last_grant_req_ts>  last_grant_req_ts , '<grant_reason>' grant_reason
+from dual
+) src
+ON (src.owner = tgt.owner and src.object_name = tgt.object_name and src.grantee_name_pattern = tgt.grantee_name_pattern
+and src.grantee_is_regexp = tgt.grantee_is_regexp and src.privilege = tgt.privilege)
+WHEN NOT MATCHED THEN
+INSERT ( owner, object_name, grantee_name_pattern, grantee_is_regexp
+,privilege, grantable,  grant_reason,last_grant_req_ts
+) VALUES
+( src.owner, src.object_name, src.grantee_name_pattern, src.grantee_is_regexp
+,src.privilege, src.grantable 
+, grant_reason, last_grant_req_ts
+, revoke_reason, last_revoke_req_ts 
+)
+WHEN MATCHED THEN UPDATE
+SET grantable = src.grantable, last_revoke_req_ts = null, last_grant_req_ts = systimestamp
+,grant_reason = src.grant_reason, last_grant_req_ts = src.last_grant_req_ts
+,revoke_reason= src.revoke_reason, last_revoke_req_ts = src.last_revoke_req_ts
+;
+]';
+	lv_return CLOB;
+	lv_merge VARCHAR2(4000);
+BEGIN
+	FOR gr_rec IN (
+		select rownum rn
+		, r.*
+		FROM object_grant_requests r
+		WHERE owner = i_schema
+		  and rownum <= 1 -- during test 
+	) LOOP
+		lv_merge := gc_merge_template_export;
+		lv_merge :=		replace( lv_merge, '<owner>', gr_rec.owner) ;
+		lv_merge :=		replace( lv_merge, '<object_name>', gr_rec.object_name ) ;
+		lv_merge :=		replace( lv_merge, '<grantee_name_pattern>', gr_rec.grantee_name_pattern ) ;
+		lv_merge :=		replace( lv_merge, '<grantee_is_regexp>', gr_rec.grantee_is_regexp ) ;
+		lv_merge :=		replace( lv_merge, '<privilege>', gr_rec.privilege ) ;
+		lv_merge :=		replace( lv_merge, '<grantable>', gr_rec.grantable ) ;
+		lv_merge :=		replace( lv_merge, '<revoke_reason>', gr_rec.revoke_reason) ;
+		lv_merge :=		replace( lv_merge, '<last_revoke_req_ts>', gf_to_date_string( gr_rec.last_revoke_req_ts) ) ;
+		lv_merge :=		replace( lv_merge, '<grant_reason>', gr_rec.grant_reason) ;
+		lv_merge :=		replace( lv_merge, '<last_grant_req_ts>', gf_to_date_string( gr_rec.last_grant_req_ts) ) ;
+
+		lv_return := CASE WHEN gr_rec.rn > 1 THEN lv_return||chr(10) END
+			||lv_merge;
+	END LOOP;
+	RETURN  lv_return;
+END ef_export_request_meta;
+
 
 END;
 /
