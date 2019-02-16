@@ -12,7 +12,7 @@ At one site, they use one grant script for each objects, for example HR.DEPARTME
 
 REM For project X, one developer put this line
 
-GRANT SELCT ON HR.departments TO schema_b;
+`GRANT SELCT ON HR.departments TO schema_b;`
 
 REM For project Y, the other developer put this:
 
@@ -31,11 +31,21 @@ CREATE OR REPLACE PRIVATE SYNONYM schema´_b.departments FOR HR.deparments;
 GRANT SELECT,INSERT,UPDATE ON HR.departments TO schema_c;
 GRANT SELECT ON HR.locations TO schema_c;
 
-This approach avoids the problem of having to update dozens of script per project, but it gets troublesome when the schema script contains thousands of lines. During deployment, all these lines need to be executed. Even if Oracle places a lock only for a veryhort time, in a busy database, running the script can take a while. Remember that the project that needs to be deployed needs only about 20 new grants. Running the grant statements for already existing object privileges is a waste of time. The other problem is that maintaining such a big script by hand is error-prone. Developer tend to edit only a few lines in the big script and actually run those lines separately, without testing the complete script.
+This approach avoids the problem of having to update dozens of script per project, but it gets troublesome when the schema script contains thousands of lines. During deployment, all these lines need to be executed. Even if Oracle places a lock only for a veryhort time, in a busy database, running the script can take a while. Remember that the project that needs to be deployed needs only about 20 new grants. Running the grant statements for already existing object privileges is a waste of time. The other problem is that maintaining such a big script by hand is error-prone. Developer tend to edit only a few lines in the big script and actually run those lines separately, without testing the complete script. Another risk is that when multiple projects modify these schema scripts, the version which ultimately get installed may destroy the work from the other versions.
 
 Both cumbersome approaches described so far strive to have a complete picture of grants and synonyms in the repository and an easy way to locate these scripts for auditing purpose. This per se is not a bad thing.
 
-I personally am convinced that there is a better way to achieve that with a more elegant method.
+I personally am convinced that there is a better way to achieve that with a more elegant method. My definition of being elegant is:
+
+*developers need to spend only minimum effort to manage grants and synonyms per project
+*the management of grants and synonyms are easily trackable
+*risk of revoking grants or dropping synonyms by mistake are at mininum level.
+
+## Terminology
+We use the term _schema_ to refer to database users which have tables, packages etc on which privieges are to be granted to other database users.
+The term _user_ refers to database user void of these type of database objects. They could be purely connecting users, or roles.
+
+The tool presented here only deals with grants on objects owned by the schemata. Grantees can be _users_ or _schemata_. The tool can also manage synonyms owned by the grantee _users_.
 
 ## Solution principles
 
@@ -66,12 +76,19 @@ As mentioned, it is sufficient for each project to use only one single script fo
 
   SELECT pck_grants_admin.f_export_request_metadate FROM DUAL;
   
-The result will be a CLOB containing the MERGE statements into OBJEct_GRANTS_RQUESTS. Spool the CLOB and commit it to your repository - of course you should automate this in your deployment workflow.
-
-
+The result will be a CLOB containing the MERGE statements into OBJEct_GRANTS_RQUESTS. Spool the CLOB and commit it to your repository - of course you should automate this in your deployment workflow. For example a robot can spool it directly to a path in your repository and commit it. Tracking of grants in repository done. Easy!
 
 ## Advanced Use Cases
 
 ## Installation 
 
+Run the script install.sql as SYS or user with equivalent privileges. This script has 2 parts:
+* Creates the schema GRANT_ADMIN, grants to it the required system privilege and SELECT on a few DBA views.
+* Creates the data model and stored procedures in GRANT_ADMIN
+
+To de-install, run de_install.sql. Privileges and synonyms which have been granted/created are left untouched.
+
 ## Copyright and Disclaimer
+
+This software can be used, modified as desired. Use at your own risk. Against fees, I would be happy to provide consultancy for installation, customization.
+
