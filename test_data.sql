@@ -1,11 +1,11 @@
 -- pattern example
 merge into object_grant_requests tgt
 using (
-select 'HR' owner,'DEPARTMENTS' object_name, 'TESTER[1-3]' grantee_name_pattern
+select 'HR' owner,'DEPARTMENTS' object_name, 'APP_USER[1-3]' grantee_name_pattern
 , 'Y'  grantee_is_regexp, 'SELECT' privilege, 'N' grantable
 from dual
 UNION ALL
-select 'HR' owner,'DEPARTMENTS' object_name, 'TESTER[2-4]' grantee_name_pattern
+select 'HR' owner,'DEPARTMENTS' object_name, 'APP_USER[2-4]' grantee_name_pattern
 , 'Y'  grantee_is_regexp, 'SELECT' privilege, 'Y' grantable
 from dual
 ) src
@@ -26,11 +26,11 @@ SET grantable = src.grantable, last_revoke_req_ts = null, last_grant_req_ts = sy
 -- revoke example 
 merge into object_grant_requests tgt
 using (
-select 'HR' owner,'TEST_REVOKE' object_name, 'TESTER2' grantee_name_pattern
+select 'HR' owner,'TEST_REVOKE' object_name, 'APP_USER2' grantee_name_pattern
 , 'N'  grantee_is_regexp, 'SELECT' privilege, 'N' grantable
 from dual
 UNION ALL -- combined with previous this provokes ambiguity 
-select 'HR' owner,'TEST_REVOKE' object_name, 'TESTER2' grantee_name_pattern
+select 'HR' owner,'TEST_REVOKE' object_name, 'APP_USER2' grantee_name_pattern
 , 'N'  grantee_is_regexp, 'SYNONYM' privilege, 'N' grantable
 from dual
 ) src

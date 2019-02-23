@@ -71,7 +71,7 @@ Both cumbersome approaches described so far strive to have a complete picture of
 and synonyms in the repository and an easy way to locate these scripts for auditing 
 purpose. This per se is not a bad thing.
 
-I personally am convinced that there is a better way to achieve that with a more elegant 
+I personally havex been convinced that there is a better way to achieve that with a more elegant 
 method. My definition of being elegant is:
 
 *developers need to spend only minimum effort to manage grants and synonyms per project
@@ -125,28 +125,37 @@ object privilege. To create a synonym in schema_b for HR.employees:
 Delevopers on a project will simply create one single script, e.g. MY_PROJECT-GRANTS_AND_SYNONYMS.sql 
 
 As mentioned, it is sufficient for each project to use only one single script for 
-grants and synonyms. Now you might notice that it would be difficult to audit who 
-has requested the grants and revokes. Fear not! This information is in 
-OBJECT_GRANT_REQUESTS table, and if want to have the information versioned 
-controlled in one single file AUTOMATICALLY, run 
+grants and synonyms. Now you might ask if each projects has itw own script for grant and
+synonyms, how would it be possible track them at a central place? Simple. The site just 
+has to include in the deployment workflow a step to always the following query
 
   `SELECT pck_grants_admin.f_export_request_meta FROM DUAL;`
-  
-The result will be a CLOB containing the MERGE statements into OBJEct_GRANTS_RQUESTS. Spool 
-the CLOB and commit it to your repository - of course you should automate this in your 
-deployment workflow. For example a robot can spool it directly to a path in your repository 
-and commit it. Tracking of grants in repository done. Easy!
+
+and spool the result into a script file. This file would be the central place.
+The grant requests of each project will end up in the OBJECT_GRANT_REQUEST table 
+and the f_export_request_meta function will generate a script file that can be 
+used to repopulate the very table. 
+
+In fact the function returns a CLOB containing the MERGE statements into 
+OBJEct_GRANTS_RQUESTS. Spool the CLOB and commit it to your repository - of course you 
+should automate this in your deployment workflow. For example a robot can spool it 
+directly to a path in your repository and commit it. So basically the projects just
+use one script for grants and synonyms, the automated workflow maintains the central
+script.
+
+File demo_workflow.md shows how this is done in practice.
 
 ## Advanced Use Cases
 
 ## Installation 
 
-Run the script install.sql as SYS or user with equivalent privileges. This script has 2 parts:
-* Creates the schema GRANT_ADMIN, grants to it the required system privilege and SELECT on 
-a few DBA views.
-* Creates the data model and stored procedures in GRANT_ADMIN
+* Run the script Step1?install.sql as SYS or user with equivalent privileges. 
+* Run the script Step2?install.sql as GRANT_ADMIN
+** Creates the data model and stored procedures in GRANT_ADMIN
+start * Run the script Step3?install.sql as SYS or user with equivalent privileges. 
 
-To de-install, run de_install.sql. Privileges and synonyms which have been granted/created 
+
+To de-install, run de-install.sql. Privileges and synonyms which have been granted/created 
 are left untouched.
 
 ## Copyright and Disclaimer
