@@ -19,7 +19,7 @@ objects:
 
 ```
 BEGIN
-	admin_grant.pck_grants_admin( USER );
+	admin_grant.pck_grants_admin.process_requests( USER );
 END;
 /
 ```
@@ -28,6 +28,7 @@ END;
 Jack works during january on project X and needs to grant 
 * SELECT on CRMP_APP.CUSTOMER to APP_USER1 
 * EXECUTE on CRM_APP.PKG_CRM to APP_USER2 
+* Create private synonym for APP_USER2 poiting to CRM_APP.PKG_CRM
 
 For working with the tool, the company has provided a MERGE statement templates anyone can 
 use. There is one template for GRANT and one for REVOKE.
@@ -62,6 +63,8 @@ MERGE INTO object_grant_requests tgt USING (
     SELECT 'CRM_APP', 'CUSTOMER'    , 'APP_USER1'           , 'N'                  , 'SELECT'     , 'N'          , 'Project X'     FROM dual
     UNION ALL
     SELECT 'CRM_APP', 'PKG_CRM'     , 'APP_USER2'           , 'N'                  , 'EXECUTE'    , 'N'          , 'Project X'     FROM dual
+    UNION ALL
+    SELECT 'CRM_APP', 'PKG_CRM'     , 'APP_USER2'           , 'N'                  , 'SYNONYM'    , NULL         , 'Project X'     FROM dual
 ) src ON (
     src.owner = tgt.owner AND src.object_name = tgt.object_name AND src.grantee_name_pattern = tgt.grantee_name_pattern AND src.grantee_is_regexp = tgt.grantee_is_regexp AND src.privilege = tgt.privilege
 )

@@ -1,5 +1,9 @@
 CREATE OR REPLACE PACKAGE BODY pck_grants_admin AS
-
+--
+-- this package uses these stand-alone procedure for debugging. You can download
+-- the source code from ???
+-- or simply create a the dummy procedures to avoid compile errors
+--
 	gc_nl CONSTANT VARCHAR2(2) := chr(10);
 	
 	gc_res_type_failed CONSTANT request_process_results.result_type%TYPE := 'Failed';
