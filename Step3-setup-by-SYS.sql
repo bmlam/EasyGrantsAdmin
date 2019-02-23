@@ -5,10 +5,12 @@ create or replace public synonym pck_grants_admin for grant_admin.pck_grants_adm
 create or replace public synonym request_process_results for grant_admin.request_process_results;
 create or replace public synonym V_fact_req_full_outer_join for grant_admin.V_fact_req_full_outer_join;
 create or replace public synonym object_grant_requests for grant_admin.object_grant_requests;
+create or replace public synonym REQUEST_PROCESS_RESULTS for grant_admin.REQUEST_PROCESS_RESULTS;
 create or replace public synonym v_object_grant_requests for grant_admin.v_object_grant_requests;
 
-grant SELECT on grant_admin.object_grant_requests to PUBLIC
-;
+grant SELECT on grant_admin.object_grant_requests to PUBLIC;
+grant SELECT on grant_admin.REQUEST_PROCESS_RESULTS to PUBLIC;
+
 
 grant execute on grant_admin.pck_grants_admin to CRM_APP;
 grant ALL on grant_admin.object_grant_requests to CRM_APP;
