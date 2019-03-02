@@ -295,17 +295,18 @@ SET grantable = src.grantable
 	lv_do_compact BOOLEAN := i_compact > 0 ;
 BEGIN
 	FOR gr_rec IN (
-		select rownum rn
+		WITH requests_ AS (
+			SELECT *
+			FROM v_object_grant_requests r
+			WHERE ( i_schema IS NULL OR owner = i_schema )
+			  --and rownum <= 1 -- during test 
+			ORDER BY owner, object_name, grantee_name_pattern, privilege
+		)
+		SELECT rownum rn
 		, r.*
-		FROM object_grant_requests r
-		WHERE owner = i_schema
-		  --and rownum <= 1 -- during test 
-		ORDER BY owner, object_name, grantee_name_pattern, privilege
+		FROM requests_ r 
 	) LOOP
 		IF lv_do_compact THEN 
-			IF gr_rec.rn = 1 THEN 
-				lv_return := lc_merge_template_header;
-			END IF;
 			lv_ua_select := lc_merge_template_ua_select;
 			lv_ua_select :=		replace( lv_ua_select, '<owner>', gr_rec.owner) ;
 			lv_ua_select :=		replace( lv_ua_select, '<object_name>', gr_rec.object_name ) ;
@@ -337,7 +338,7 @@ BEGIN
 	END LOOP;
 	
 	IF lv_do_compact THEN 
-		lv_return := lv_return || gc_nl || lv_all_ua_selects || gc_nl || lc_merge_template_trailer;
+		lv_return := lc_merge_template_header || gc_nl || lv_all_ua_selects || gc_nl || lc_merge_template_trailer;
 	END IF; -- lv_do_compact
 
 	RETURN  lv_return||gc_nl||'COMMIT;'||gc_nl;

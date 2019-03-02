@@ -20,20 +20,27 @@ elegant solution.
 At one site, they use one grant script for each objects, for example 
 HR.DEPARTMENTS.GRANTS.sql. In there, developers put stuff like:
 
-`REM By Jack for project X: we need to query the table ` 
-`GRANT SELCT ON HR.departments TO schema_b;`
+```
+REM By Jack for project X: we need to query the table  
+GRANT SELCT ON HR.departments TO schema_b;
 
-`REM By Emily for project Y2: schema_c needs to change data, schema_d needs to query`
-`GRANT SELECT,INSERT,UPDATE ON HR.departments TO schema_c;`
-`GRANT SELECT ON HR.departments TO schema_d;`
+REM By Emily for project Y2: schema_c needs to change data, schema_d needs to query
+GRANT SELECT,INSERT,UPDATE ON HR.departments TO schema_c;
+GRANT SELECT ON HR.departments TO schema_d;
+```
 
-Similar stuff will be found in HR.EMPLOYEES.GRANTS.sql 
+Similar stuff will probably be found in scripts such as
 
-Of course, both the script HR.DEPARTMENTS.GRANTS.sql and HR.EMPLOYEES.GRANTS.sql 
-are version controlled in a repository. For a project which need to grant or revoke 
-privilege on 20 objects, 20 scripts need to be updated/created. If the synonyms for 
-HR.DEPARTMENTS are managed in a script HR.DEPARTMENS.SYNONYMS.sql, there are 20 more 
-synonym scripts to deal with.
+* HR.EMPLOYEES.GRANTS.sql
+* HR.LOCATIONS.GRANTS.sql
+* SALES.ORDER_ENTRIES.GRANTS.sql 
+* SALES.PRODUCTS.GRANTS.sql
+
+and so on and so forth
+
+Of course, all these grant scripts are version controlled in a repository. For a project which needs to 
+grant or revoke privilege on 20 objects, 20 scripts need to be updated/created. If the synonyms for 
+HR.DEPARTMENTS are managed in a script HR.DEPARTMENS.SYNONYMS.sql, there are 20 more synonym scripts to deal with.
 
 It should be noted some site has a policy to automatically revoke object privileges 
 which are not listed explicitly in the grant scripts.
@@ -43,18 +50,19 @@ Yet at another site, the objects privileges and synonyms are managed in one sing
 script per schema. For example there would be a HR.GRANTS_AND_SYNONYMS.SQL where 
 you will find these lines:
 
-`REM By Jack for project X: we need to query the tables ` 
-`GRANT SELCT ON HR.departments TO schema_b;`
-`GRANT SELCT ON HR.emloyees TO schema_b;`
+```
+REM By Jack for project X: we need to query the tables  
+GRANT SELCT ON HR.departments TO schema_b;
+GRANT SELCT ON HR.emloyees TO schema_b;
 
-`REM By Emily for project Y2: schema_c needs to change data, schema_d needs to query`
+REM By Emily for project Y2: schema_c needs to change data, schema_d needs to query
 
-`GRANT SELECT,INSERT,UPDATE ON HR.departments TO schema_c;`
-`GRANT SELECT,INSERT,UPDATE ON HR.employees TO schema_c;`
+GRANT SELECT,INSERT,UPDATE ON HR.departments TO schema_c;
+GRANT SELECT,INSERT,UPDATE ON HR.employees TO schema_c;
 
-`GRANT SELECT ON HR.departments TO schema_d;`
-`GRANT SELECT ON HR.employees TO schema_d;`
-
+GRANT SELECT ON HR.departments TO schema_d;
+GRANT SELECT ON HR.employees TO schema_d;
+```
 
 This approach avoids the problem of having to update dozens of script per project, but it 
 gets troublesome when the schema script contains thousands of lines. During deployment, 
@@ -71,10 +79,10 @@ Both cumbersome approaches described so far strive to have a complete picture of
 and synonyms in the repository and an easy way to locate these scripts for auditing 
 purpose. This per se is not a bad thing.
 
-I personally havex been convinced that there is a better way to achieve that with a more elegant 
+I personally have always thought there must be a better way to implement the good intentions with a more elegant 
 method. My definition of being elegant is:
 
-*developers need to spend only minimum effort to manage grants and synonyms per project
+*developers need to spend only minimum effort on managing grants and synonyms per project
 *the management of grants and synonyms are easily trackable
 *risk of revoking grants or dropping synonyms by mistake are at mininum level.
 
@@ -96,10 +104,11 @@ project is indeed the fruit of this designing and implementation process.
 
 The central "repository" for grants and synonyms is the table object_grant_requests. 
 To get the relevant object privileges, a developer would put for example these lines:
-
-`INSERT INTO GRANT_ADMIN.object_grant_requests VALUES ( 'HR', 'DEPARTMENTS', 'SELECT', 'SCHEMA_B', 'G', 'my project need SELECT' );`
-`INSERT INTO GRANT_ADMIN.object_grant_requests VALUES ( 'HR', 'EMPLOYESS', 'SELECT', 'SCHEMA_B', 'G', 'my project need SELECT' );`
-`COMMIT;`
+```
+INSERT INTO GRANT_ADMIN.object_grant_requests VALUES ( 'HR', 'DEPARTMENTS', 'SELECT', 'SCHEMA_B', 'G', 'my project need SELECT' );
+INSERT INTO GRANT_ADMIN.object_grant_requests VALUES ( 'HR', 'EMPLOYESS', 'SELECT', 'SCHEMA_B', 'G', 'my project need SELECT' );
+COMMIT;
+```
 
 The package which actually will perform the grant, PCK_GRANTS_ADMIN, is in a schema 
 which does not have DBA privileges. But the package is defined with INVOKERS RIGHT. 
@@ -110,17 +119,22 @@ logon e.g. as HR user and call:
   
 Performing a revoke is done similary, to revoke SELECT on HR.locations from schema_c, 
 the line would be:
-
-`INSERT INTO GRANT_ADMIN.object_grant_requests VALUES ( 'HR', 'LOCATIONS', 'SELECT', 'SCHEMA_C', 'R', 'decommission old code' );`
+```
+INSERT INTO GRANT_ADMIN.object_grant_requests VALUES ( 'HR', 'LOCATIONS', 'SELECT', 'SCHEMA_C', 'R', 'decommission old code' );
+```
 
 Suppose your project also requires grants on objects in the SALES schema, the deployer 
 will need to log on as SALES and again run 
-  `EXECUTE pck_grants_admin.p_process_request( i_schema=> USER )`
+```
+  EXECUTE pck_grants_admin.p_process_request( i_schema=> USER )
+```
 
 Creating (or dropping) synonyms are handled the same way as granting or revoking 
 object privilege. To create a synonym in schema_b for HR.employees:
 
-`INSERT INTO GRANT_ADMIN.object_grant_requests VALUES ( 'HR', 'EMPLOYESS', 'SYNONYM', 'SCHEMA_B', 'G', 'Synonym is a good thing' );`
+```
+INSERT INTO GRANT_ADMIN.object_grant_requests VALUES ( 'HR', 'EMPLOYESS', 'SYNONYM', 'SCHEMA_B', 'G', 'Synonym is a good thing' );
+```
 
 Delevopers on a project will simply create one single script, e.g. MY_PROJECT-GRANTS_AND_SYNONYMS.sql 
 
@@ -129,7 +143,9 @@ grants and synonyms. Now you might ask if each projects has itw own script for g
 synonyms, how would it be possible track them at a central place? Simple. The site just 
 has to include in the deployment workflow a step to always the following query
 
-  `SELECT pck_grants_admin.f_export_request_meta FROM DUAL;`
+```
+  SELECT pck_grants_admin.f_export_request_meta FROM DUAL;
+```
 
 and spool the result into a script file. This file would be the central place.
 The grant requests of each project will end up in the OBJECT_GRANT_REQUEST table 
@@ -146,6 +162,7 @@ script.
 File demo_workflow.md shows how this is done in practice.
 
 ## Advanced Use Cases
+Using name patterns
 
 ## Installation 
 
