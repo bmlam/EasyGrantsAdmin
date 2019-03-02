@@ -1,11 +1,11 @@
-CREATE OR REPLACE PACKAGE BODY pck_grants_admin AS
---
+CREATE OR REPLACE PACKAGE BODY pck_grants_admin 
+AS
+/*
 -- this package uses these stand-alone procedure for debugging. You can download
 -- the source code from ???
 -- or simply create a the dummy procedures to avoid compile errors
---
-	gc_nl CONSTANT VARCHAR2(2) := chr(10);
-	
+*/ 
+	gc_nl CONSTANT VARCHAR2(2) := chr(10); 
 	gc_res_type_failed CONSTANT request_process_results.result_type%TYPE := 'Failed';
 	gc_res_type_success CONSTANT request_process_results.result_type%type := 'Success';
 	gc_res_type_skipped CONSTANT request_process_results.result_type%type := 'Skipped';
@@ -134,11 +134,13 @@ BEGIN
 	WHERE table_owner = i_schema
 	;
 	loginfo ($$plsql_unit||':'||$$plsql_line, 'inserted rows into gtmp_object_privs: '||sql%rowcount );
-
+	COMMIT;
 	
 	FOR act_rec IN (
 		SELECT * FROM V_fact_req_full_outer_join
+		WHERE request_id IS NOT NULL
 	) LOOP
+		debug( $$plsql_unit||';'||$$plsql_line, ' prio:'||act_rec.prio||' r_priv:'||act_rec.r_priv||' req_id:'||act_rec.request_id||' ddl:'||act_rec.ddl||' req_type:'||act_rec.req_type );
 		IF act_rec.prio > 1 THEN 
 			l_result_type := gc_res_type_overruled;
 		ELSE
@@ -162,7 +164,7 @@ BEGIN
 				COMMIT;
 			END IF; -- check DDL 
 		END IF;  -- check skipped
-
+		debug( $$plsql_unit||':'||$$plsql_line, 'l_result_type='||l_result_type);
 		IF l_result_type <> gc_res_type_skipped THEN 
 			lrec_result.req_id    :=  act_rec.request_id;
 			lrec_result.req_type   :=  act_rec.req_type;

@@ -49,8 +49,34 @@ select REQUEST_TYPE rty, t.* from v_object_grant_requests t
 order by id desc
 ;
 
+exec pck_grants_admin.ep_denormalize_grants( i_schema => user );
+exec pck_grants_admin.ep_process_requests ( i_schema =>user );
+
+select * from object_grant_requests order by grantee_name_pattern, owner, object_name, privilege;
+
+select * from all_tables where table_name like 'GT%';
 select * from gtmp_request_denormed order by grantee, owner, object_name, priv;
 select * from gtmp_grantable_objects;
 select * from gtmp_object_privs;
+-- data model 
+SELECT * from V_fact_req_full_outer_join;
 
+
+	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id
+	, 'Y',		request_ts
+	FROM v_object_grant_requests r
+	JOIN all_grantees g  ON REGEXP_LIKE ( g.grantee, r.grantee_name_pattern )
+	JOIN gtmp_grantable_objects o ON o.owner = r.owner AND o.object_name = r.object_name
+	WHERE r.grantee_is_regexp = 'Y'
+	UNION ALL
+	SELECT r.owner,  o.object_name,  g.grantee,  r.grantable,  r.privilege,   r.request_type,   r.id
+	, 'N',    request_ts
+	FROM v_object_grant_requests r
+	JOIN all_grantees g  ON g.grantee = r.grantee_name_pattern 
+	JOIN gtmp_grantable_objects o ON o.owner = r.owner AND o.object_name = r.object_name
+	WHERE r.grantee_is_regexp = 'N'
+;
+select * from v_object_grant_requests;
+select * from all_grantees;
+select * from gtmp_grantable_objects;
 

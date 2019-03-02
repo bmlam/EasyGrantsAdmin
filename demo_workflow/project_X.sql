@@ -4,6 +4,8 @@ MERGE INTO object_grant_requests tgt USING (
     SELECT 'CRM_APP', 'CUSTOMER'    , 'APP_USER1'           , 'N'                  , 'SELECT'     , 'N'          , 'Project X'     FROM dual
     UNION ALL
     SELECT 'CRM_APP', 'PKG_CRM'     , 'APP_USER2'           , 'N'                  , 'EXECUTE'    , 'N'          , 'Project X'     FROM dual
+    UNION ALL
+    SELECT 'CRM_APP', 'PKG_CRM'     , 'APP_USER2'           , 'N'                  , 'SYNONYM'    , 'N'          , 'Project X'     FROM dual
 ) src ON (
     src.owner = tgt.owner AND src.object_name = tgt.object_name AND src.grantee_name_pattern = tgt.grantee_name_pattern AND src.grantee_is_regexp = tgt.grantee_is_regexp AND src.privilege = tgt.privilege
 )
