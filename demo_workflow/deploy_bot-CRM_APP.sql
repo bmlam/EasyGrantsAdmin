@@ -1,9 +1,9 @@
-REM perform grant of object privileges in schema CRM_APP
-REM it may make sense to check that the current user is indeed CRM_APP
-
-SHOW USER
-
 BEGIN
+	IF user <> 'CRM_APP' THEN 
+		RAISE_APPLICATION_ERROR( -20001, 'Wrong connecting user!' );
+	END IF;
+
 	pck_grants_admin.ep_process_requests( USER );
+	
 END;
 /

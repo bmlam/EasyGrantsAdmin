@@ -3,11 +3,11 @@ MERGE INTO object_grant_requests tgt USING (
     UNION ALL
     SELECT 'SALES_APP', 'PRODUCT'          , 'APP_USER2'           , 'N'                  , 'SELECT'    , 'N'          , 'Project Y2'     FROM dual
     UNION ALL
-    SELECT 'SALES_APP', 'COMMS_CHANNEL'    , 'APP_USER1'           , 'N'                  , 'SELECT'     , 'N'          , 'Project Y2'     FROM dual
+    SELECT 'CRM_APP',   'COMMS_CHANNEL'    , 'APP_USER1'           , 'N'                  , 'SELECT'     , 'N'          , 'Project Y2'     FROM dual
     UNION ALL
-    SELECT 'SALES_APP', 'COMMS_CHANNEL'    , 'APP_USER1'           , 'N'                  , 'INSERT'     , 'N'          , 'Project Y2'     FROM dual
+    SELECT 'CRM_APP',   'COMMS_CHANNEL'    , 'APP_USER1'           , 'N'                  , 'INSERT'     , 'N'          , 'Project Y2'     FROM dual
     UNION ALL
-    SELECT 'SALES_APP', 'COMMS_CHANNEL'    , 'APP_USER1'           , 'N'                  , 'UPDATE'     , 'N'          , 'Project Y2'     FROM dual
+    SELECT 'CRM_APP',   'COMMS_CHANNEL'    , 'APP_USER1'           , 'N'                  , 'UPDATE'     , 'N'          , 'Project Y2'     FROM dual
 ) src ON (
     src.owner = tgt.owner AND src.object_name = tgt.object_name AND src.grantee_name_pattern = tgt.grantee_name_pattern AND src.grantee_is_regexp = tgt.grantee_is_regexp AND src.privilege = tgt.privilege
 )
