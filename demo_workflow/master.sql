@@ -1,9 +1,20 @@
 REM master script for convenience 
 REM we switch between connecting users within this script
 
-DEFINE pi_dba_connect_string=system/oracle@192.168.178.36/orcl
-DEFINE pi_app_schema_1_connect_string=crm_app/crm_app@192.168.178.36/orcl
-DEFINE pi_app_schema_2_connect_string=sales_app/sales_app@192.168.178.36/orcl
+REM The following way to define connection data and credentials is not recommended 
+REM for copying in real life projects!
+REM Dropping and recreating objects as done here is only acceptable for demo purpose!
+
+DEFINE pi_connection_data=192.168.178.36/orcl
+
+DEFINE pi_dba_credential=system/oracle@
+DEFINE pi_app_schema_1_credential=crm_app/crm_app
+DEFINE pi_app_schema_2_credential=sales_app/sales_app 
+
+
+DEFINE pi_dba_connect_string=& pi_dba_credential@& pi_connection_data
+DEFINE pi_app_schema_1_connect_string=& pi_app_schema_1_credential&pi_connection_data
+DEFINE pi_app_schema_2_connect_string=& pi_app_schema_2_credential&pi_connection_data
 
 COL PRIVILEGE FORMAT A20
 COL TABLE_NAME FORMAT A30

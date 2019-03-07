@@ -18,7 +18,8 @@
 exec pck_grants_admin.ep_denormalize_grants( i_schema =>'HR' );
 exec pck_grants_admin.ep_process_requests ( i_schema =>'HR' );
 
-select pck_grants_admin.ef_export_current_grants( 'HR' ) from dual;
+select pck_grants_admin.ef_export_request_meta( null ) from dual;
+select pck_grants_admin.ef_export_current_grants( null ) from dual;
 --
 -- data dict
 -- 
@@ -79,4 +80,11 @@ SELECT * from V_fact_req_full_outer_join;
 select * from v_object_grant_requests;
 select * from all_grantees;
 select * from gtmp_grantable_objects;
+select * from request_process_results order by processed_ts desc;
 
+		select rownum rn
+		, r.*
+		FROM v_object_grant_requests r
+--		WHERE ( i_schema IS NULL OR owner = i_schema )
+		  --and rownum <= 1 -- during test 
+		ORDER BY owner, object_name, grantee_name_pattern, privilege;

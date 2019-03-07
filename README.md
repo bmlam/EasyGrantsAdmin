@@ -4,18 +4,18 @@
 
 In a large Oracle installation it is normal that database objecs including stored 
 procedures exist in more than one schema.  Consequently schema A requires object 
-privilege such as SELECT, INSERT, EXECUTE on objects in schema B. More common is 
-the case where there are also schema C, D, E etc. Managing hundreds, thousands 
-or even more inter-schemata object privieges can become a real headache.
+privilege such as SELECT, INSERT, EXECUTE on objects in schema B. There may be even more schemata: C, D, E etc. 
+Managing hundreds, thousands or even more inter-schemata object privieges can become a real headache.
 
-Closely related to grant of object privileges is managing synonymns. Using synonym 
+Closely related to granting/revoking of object privileges is managing synonymns. Using synonym 
 is usually a better practice than qualifying the object name with the owning schema
 name. If PUBLIC SYNONYMs are used, the management is pretty straight forward. But 
 at sites where PRIVATE SYNONYMS are preferred for whatever reason, managing the 
-synonyms is as painful as grants.
+synonyms is as painful as grants, from a developers point of view.
 
-I have worked at many sites facing these challenges and have in fact rarely seen any 
-elegant solution. 
+Lets be honest: dealing with grants and syonyms are no intellectual changes at all and therefore the task should not cost an undue amount of effort.
+
+I have worked at many sites facing these challenges and have in fact not seen any solution which makes the task painless for deveolpers.
 
 At one site, they use one grant script for each objects, for example 
 HR.DEPARTMENTS.GRANTS.sql. In there, developers put stuff like:
@@ -87,7 +87,7 @@ method. My definition of being elegant is:
 *risk of revoking grants or dropping synonyms by mistake are at mininum level.
 
 ## Terminology
-We use the term _schema_ to refer to database users which have tables, packages etc on 
+I will use the term _schema_ to refer to database users which have tables, packages etc on 
 which privieges are to be granted to other database users.  The term _user_ refers to 
 database user void of these type of database objects. They could be purely connecting 
 users, or roles.
@@ -111,7 +111,7 @@ COMMIT;
 ```
 
 The package which actually will perform the grant, PCK_GRANTS_ADMIN, is in a schema 
-which does not have DBA privileges. But the package is defined with INVOKERS RIGHT. 
+which does _not_ require DBA privileges. But the package is defined with INVOKERS RIGHT. 
 After checking the object_grant_requests table and the data dictionary, it will 
 generate the appropiate GRANT sttaements. In practice, the deployer will need to 
 logon e.g. as HR user and call:
@@ -140,29 +140,38 @@ Delevopers on a project will simply create one single script, e.g. MY_PROJECT-GR
 
 As mentioned, it is sufficient for each project to use only one single script for 
 grants and synonyms. Now you might ask if each projects has itw own script for grant and
-synonyms, how would it be possible track them at a central place? Simple. The site just 
-has to include in the deployment workflow a step to always the following query
+synonyms, how would it be possible to track them at a central place? Simple. The package provides a function to export the data in OBJECT_GRANT_REQUESTS into a script in the form of a CLOB. The site just has to include in the deployment workflow a step to extract the script with the following query
 
 ```
   SELECT pck_grants_admin.f_export_request_meta FROM DUAL;
 ```
 
-and spool the result into a script file. This file would be the central place.
-The grant requests of each project will end up in the OBJECT_GRANT_REQUEST table 
-and the f_export_request_meta function will generate a script file that can be 
-used to repopulate the very table. 
+Once the script is spooled to a file, which can be checked into the source code repository.
+Since the grant and revoke requests of all projects end up in the OBJECT_GRANT_REQUEST table 
+and the exported script reflects all rows in the table, it can be used to repopulate the very table, should such a need arise.
 
-In fact the function returns a CLOB containing the MERGE statements into 
-OBJEct_GRANTS_RQUESTS. Spool the CLOB and commit it to your repository - of course you 
-should automate this in your deployment workflow. For example a robot can spool it 
-directly to a path in your repository and commit it. So basically the projects just
-use one script for grants and synonyms, the automated workflow maintains the central
-script.
+Of course you the script export and check-in step should be automated and included in the 
+deployment workflow. For example a robot can spool it 
 
-File demo_workflow.md shows how this is done in practice.
+directly to a path in your repository and commit it. 
+To sum up, each projects just requires one script for grants and synonyms, the automated workflow keeps the central
+script, which incorporate the grants and revokes for all projects, up-to-date.
+
+File demo_workflow.md shows how this is done in practice (without the automated export step).
 
 ## Advanced Use Cases
-Using name patterns
+The tool also allows the use of regular expression to specifies the grantees, for example it is possible to use **HR|SALES** to specifiy 
+* HR 
+* SALES 
+
+as grantees within the same row of OBJECT_GRANT_REQUEST. 
+
+By the same token, **USER0[1-3]** specifies in one row that 
+* USER01 
+* USER02 
+* USER03 
+
+are the grantees.
 
 ## Installation 
 
