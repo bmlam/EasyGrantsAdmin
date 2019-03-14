@@ -1,5 +1,7 @@
 REM run this script with a DBA user!
 
+conn system/oracle@192.168.178.36/orcl
+
 create or replace view grant_admin.vw_vol_test_objects as
 select 'TABLE' as otype
   ,'VOL_TEST_TABLE_'||to_char(level) object_name 
@@ -14,6 +16,7 @@ from dual
 connect by level <= 200
 ;
 
+grant select on grant_admin.vw_vol_test_objects to public;
 
 set time on timing on 
 
