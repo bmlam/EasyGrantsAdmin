@@ -56,7 +56,7 @@ BEGIN
 	( owner,    object_name,     object_type
 	)
 	SELECT owner,    object_name,     object_type
-	FROM dba_objects
+	FROM all_objects
 	WHERE owner = i_schema
 		AND object_type IN
 		('aa'
@@ -124,13 +124,13 @@ BEGIN
 	( owner,    object_name,     grantee,	 privilege,	 	grantable
 	)
 	SELECT
-	owner,    table_name,     grantee,	 privilege,	 	grantable
-	FROM dba_tab_privs
-	WHERE owner = i_schema
+	table_schema,    table_name,     grantee,	 privilege,	 	grantable
+	FROM all_tab_privs
+	WHERE table_schema = i_schema
 	UNION ALL
 	SELECT 
 	table_owner, table_name,  owner, 'SYNONYM',     null
-	FROM dba_synonyms
+	FROM all_synonyms
 	WHERE table_owner = i_schema
 	;
 	loginfo ($$plsql_unit||':'||$$plsql_line, 'inserted rows into gtmp_object_privs: '||sql%rowcount );
@@ -202,10 +202,10 @@ AS
 BEGIN
 	FOR gr_rec IN (
 		select rownum rn
-		, owner, table_name as object_name, grantee, privilege
+		, table_schema owner, table_name as object_name, grantee, privilege
 		, substr( grantable, 1, 1) grantable
-		FROM dba_tab_privs
-		WHERE owner = i_schema
+		FROM all_tab_privs
+		WHERE table_schema = i_schema
 	) LOOP
 		lv_merge := gc_merge_template_migr;
 		lv_merge :=		replace( lv_merge, '<owner>', gr_rec.owner) ;

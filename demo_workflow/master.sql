@@ -5,30 +5,31 @@ REM The following way to define connection data and credentials is not recommend
 REM for copying in real life projects!
 REM Dropping and recreating objects as done here is only acceptable for demo purpose!
 
+SET ECHO ON VERIFY ON 
+
 DEFINE pi_connection_data=192.168.178.36/orcl
 
-DEFINE pi_dba_credential=system/oracle@
+DEFINE pi_dba_credential=system/oracle
 DEFINE pi_app_schema_1_credential=crm_app/crm_app
-DEFINE pi_app_schema_2_credential=sales_app/sales_app 
+DEFINE pi_app_schema_2_credential=sales_app/sales_app
 
-
-DEFINE pi_dba_connect_string=& pi_dba_credential@& pi_connection_data
-DEFINE pi_app_schema_1_connect_string=& pi_app_schema_1_credential&pi_connection_data
-DEFINE pi_app_schema_2_connect_string=& pi_app_schema_2_credential&pi_connection_data
+DEFINE pi_dba_connect_string=&pi_dba_credential@&pi_connection_data
+DEFINE pi_app_schema_1_connect_string=&pi_app_schema_1_credential@&pi_connection_data
+DEFINE pi_app_schema_2_connect_string=&pi_app_schema_2_credential@&pi_connection_data
 
 COL PRIVILEGE FORMAT A20
 COL TABLE_NAME FORMAT A30
 COL OWNER FORMAT A20
 COL GRANTEE FORMAT A20
 
+SET ECHO ON FEEDBACK 
+
 SET PAGESize 50 LINESIZE 120
-SET VERIFY OFF
+SET VERIFY ON
 
 PROMPT Project X set up 
 
 CONNECT &pi_dba_connect_string
-
-SET ECHO ON 
 
 DROP SYNONYM app_user2.pkg_crm;
 DROP PACKAGE crm_app.pkg_crm;
@@ -60,7 +61,7 @@ PAUSE
 
 PROMPT after deployment  of project X
 
-CONNECT & pi_dba_connect_string
+CONNECT &pi_dba_connect_string
 START ./verify_proj_x.sql
 
 PROMPT Project y2 set up 
@@ -104,7 +105,7 @@ PAUSE
 
 PROMPT after deployment  of project z2
 
-CONNECT & pi_dba_connect_string
+CONNECT &pi_dba_connect_string
 START ./verify_proj_y2.sql
 
 

@@ -174,18 +174,22 @@ By the same token, **USER0[1-3]** specifies in one row that
 are the grantees.
 
 ## Installation 
+We assume you want to install the required objects in a schema named GRANT_ADMIN. If you choose to use another schema, you just need to edit the installation scripts accordingly. 
 
-* Run the script Step1?install.sql as SYS or user with equivalent privileges. 
-* Run the script Step2?install.sql as GRANT_ADMIN
-** Creates the data model and stored procedures in GRANT_ADMIN
-start * Run the script Step3?install.sql as SYS or user with equivalent privileges. 
+There is one view that should be created and owned by SYS user - ALL_GRANTEES. But if you cannot get your DBA to do it, you can create a view or table with the same name in the GRANT_ADMIN schema. The object just needs to include all user or role names which will ever receive privileges managed by EasyGrantAdmin.
 
+* Run the script core_setup-step1-by-dba.sql as SYS or any user with equivalent privileges. 
+* Run the script core_setup-step2-by-grant_admin.sql as GRANT_ADMIN
+
+## Optionally, create the database objects for demo or test of EasyGrantAdmin
+start the script demo_setup-by-dba.sql as SYS or an user with equivalent privileges. 
 
 To de-install, run de-install.sql. Privileges and synonyms which have been granted/created 
 are left untouched.
 
 ## Copyright and Disclaimer
 
-This software can be used, modified as desired. Use at your own risk. Against fees, I would 
-be happy to provide consultancy for installation, customization.
+This software can be used, modified as desired. Use it at your own risk!. Against fees, I would be happy to provide consultancy for installation, customization.
+
+The scripts have been tested in an Oracle Developer Day virtual machine. Some of the scripts may contain username and password for my convenience during testing. You will NOT copy this for a real environment!
 

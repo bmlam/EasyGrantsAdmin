@@ -1,6 +1,6 @@
 set echo on
 
---start data_model.sql
+start data_model.sql
 
 set echo off
 

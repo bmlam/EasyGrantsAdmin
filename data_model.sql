@@ -34,13 +34,11 @@ create /*permanent during testingglobal temporary  */
 table gtmp_grantable_objects
 --on commit preserve rows
 as select owner, object_name, object_type from all_objects where 1=0
---for dba_objects of relevant types
 ;
 --drop table gtmp_request_denormed ;
 create /*permanent during testingglobal temporary  */ 
 table gtmp_object_privs
 on commit preserve rows
---for dba_tab_privs for relevant grantees and 	relevant object types
 as select table_schema as owner, table_name as object_name, grantee, privilege, grantable
 from all_tab_privs where 1=0
 ;

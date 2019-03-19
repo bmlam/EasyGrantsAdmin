@@ -1,3 +1,5 @@
+PROMPT To grant 3 privileges 
+
 MERGE INTO object_grant_requests tgt USING (
     SELECT '?' owner   , '?' object_name, '?' grantee_name_pattern, '?' grantee_is_regexp, '?' privilege, '?' grantable, '?' grant_reason        FROM dual WHERE 1=0 /*layout inline view*/
     UNION ALL

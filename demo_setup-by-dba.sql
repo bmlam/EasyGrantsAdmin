@@ -1,24 +1,3 @@
-create user grant_admin identified by grant_admin quota 100m on users
-;
-grant resource, create session to grant_admin
-;
-grant create view to grant_admin
-;
-grant create any synonym to grant_admin
-;
-grant drop any synonym to grant_admin
-;
-grant select on dba_objects to grant_admin
-;
-grant select on dba_synonyms to grant_admin
-;
-grant select on dba_tab_privs to grant_admin
-;
-grant select on dba_users to grant_admin
-;
-grant select on dba_roles to grant_admin
-;
-
 -- application user CRM_APP
 create user crm_app identified by crm_app
 ;
@@ -51,21 +30,6 @@ grant create session to SALES_APP
 grant resource to SALES_APP
 ;
 
-create user app_user1 identified by app_user1;
-create user app_user2 identified by app_user2;
-create user app_user3 identified by app_user3;
-
-create or replace view all_grantees
-as 
-select username AS grantee
-from dba_users
-union 
-select role from dba_roles
-;
-
-grant select on all_grantees to public;
-create or replace public synonym all_grantees for sys.all_grantees;
-
 
 -- crm_app schema objects for demo
 CREATE TABLE crm_APP.CUSTOMER AS SELECT * FROM DUAL;
@@ -80,3 +44,8 @@ CREATE TABLE SALES_APP."ORDER"   AS SELECT * FROM DUAL;
 
 CREATE  OR REPLACE PACKAGE SALES_APP.PKG_ORDER_ENTRY AS BEGIN NULL; END;
 /
+
+create user app_user1 identified by app_user1;
+create user app_user2 identified by app_user2;
+create user app_user3 identified by app_user3;
+
