@@ -33,7 +33,7 @@ Jack works during january on project X and needs to grant
 For working with the tool, the company has provided a MERGE statement templates anyone can 
 use. There is one template for GRANT and one for REVOKE.
 
-Here is the template for GRANT:
+Here is the template for **GRANT**:
 
 ```
 MERGE INTO object_grant_requests tgt USING (
@@ -86,7 +86,7 @@ Emily works in april on her project and needs to grant
 * SELECT,INSERT,UPDATE on CRM_APP.COMMS_CHANNEL to APP_USER3
 
 We mentioned there are 2 templates, one for GRANT and one for REVOKE. Below is the 
-_revoke_ template
+**REVOKE** template
 
 ```
 MERGE INTO object_grant_requests tgt USING (
@@ -196,8 +196,6 @@ WHEN MATCHED THEN UPDATE
 COMMIT;
 ```
 
-Note that with EasyGrantAdmin Louis does _not_ need to touch neither the grant 
-script from preject X nor any central script which might exist! Since the central 
-script would be updated automatically.
+Note that with EasyGrantAdmin Louis does **not** need to touch neither the grant script from preject X nor any central script which might exist! If the site has a policy to maintain a central script, the task can be automated, saving programmer effort for other more valuable duties.
 
 
