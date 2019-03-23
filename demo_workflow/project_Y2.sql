@@ -1,4 +1,4 @@
-PROMPT To grant 2 privileges 
+PROMPT revoke 1 and grant 2 privileges 
 
 MERGE INTO object_grant_requests tgt USING (
     SELECT '?' owner   , '?' object_name, '?' grantee_name_pattern, '?' grantee_is_regexp, '?' privilege, '?' revoke_reason        FROM dual WHERE 1=0 /*layout inline view*/

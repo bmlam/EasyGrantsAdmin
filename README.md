@@ -13,7 +13,7 @@ name. If PUBLIC SYNONYMs are used, the management is pretty straight forward. Bu
 at sites where PRIVATE SYNONYMS are preferred for whatever reason, managing the 
 synonyms is as painful as grants, from a developers point of view.
 
-Lets be honest: dealing with grants and syonyms are no intellectual changes at all and therefore the task should not cost an undue amount of effort.
+Lets be straight: dealing with grants and syonyms are no intellectual changes at all and therefore the task should not cost an undue amount of effort.
 
 I have worked at many sites facing these challenges and have in fact not seen any solution which makes the task painless for deveolpers.
 
