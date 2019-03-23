@@ -4,7 +4,9 @@ PROMPT To grant UPDATE
 MERGE INTO object_grant_requests tgt USING (
     SELECT '?' owner   , '?' object_name, '?' grantee_name_pattern, '?' grantee_is_regexp, '?' privilege, '?' revoke_reason        FROM dual WHERE 1=0 /*layout inline view*/
     UNION ALL
-    SELECT 'CRM_APP', 'PKG_CRM'    , 'APP_USER2'           , 'N'                  , 'EXECUTE'     , 'User abused the priv'        FROM dual
+    SELECT 'CRM_APP', 'CUSTOMER'    , 'APP_USER2'           , 'N'                  , 'UPDATE'     , 'project Z: User abused the priv'        FROM dual
+    UNION ALL
+    SELECT 'CRM_APP', 'CUSTOMER'    , 'APP_USER2'           , 'N'                  , 'SYNONYM'     , 'project Z: User abused the priv'        FROM dual
 ) src ON (
     src.owner = tgt.owner AND src.object_name = tgt.object_name AND src.grantee_name_pattern = tgt.grantee_name_pattern AND src.grantee_is_regexp = tgt.grantee_is_regexp AND src.privilege = tgt.privilege
 )
@@ -20,7 +22,9 @@ WHEN MATCHED THEN UPDATE
 MERGE INTO object_grant_requests tgt USING (
     SELECT '?' owner   , '?' object_name, '?' grantee_name_pattern, '?' grantee_is_regexp, '?' privilege, '?' grantable, '?' grant_reason        FROM dual WHERE 1=0 /*layout inline view*/
     UNION ALL
-    SELECT 'CRM_APP', 'CUSTOMER'    , 'APP_USER2'           , 'N'                  , 'UPDATE'     , 'N'          , 'Project Z'     FROM dual
+    SELECT 'SALES_APP', 'PRODUCT'    , 'APP_USER1'           , 'N'                  , 'SELECT'     , 'N'          , 'Project Z'     FROM dual
+    UNION ALL
+    SELECT 'SALES_APP', 'PRODUCT'    , 'APP_USER1'           , 'N'                  , 'INSERT'     , 'N'          , 'Project Z'     FROM dual
 ) src ON (
     src.owner = tgt.owner AND src.object_name = tgt.object_name AND src.grantee_name_pattern = tgt.grantee_name_pattern AND src.grantee_is_regexp = tgt.grantee_is_regexp AND src.privilege = tgt.privilege
 )

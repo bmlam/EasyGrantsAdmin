@@ -27,18 +27,26 @@ select systimestamp from dual;
 select * from dba_tab_privs;
 select * from object_grant_requests order by 2;
 
-select * from dba_tab_privs where owner = 'SYSTEM';
+select * from dba_tab_privs 
+where 1=1 
+  and owner like '%APP' AND TABLE_NAME NOT LIKE 'VOL_TEST%'
+  and privilege = 'EXECUTE'
+;
 select owner,count(1), count(distinct grantee) from dba_tab_privs 
 group by owner
 order by 1
 ;
-
+desc dba_tab_privs
 -- log table 
-select component loc, 'Y'||to_char(timestamp, 'rr.mmdd hh24:miss')ts, text txt, t.* from log_table t 
+select component loc, 'Y'||to_char(timestamp, 'rr.mmdd hh24:miss')ts, text txt, t.* 
+from log_table t 
 order by id desc
 ;
-select * from REQUEST_PROCESS_RESULTS order by processed_ts desc;
-
+-- what happened with SYNONYM  priv? DDL is genrated correctly, but what went wrong from there?
+select
+ (select privilege||owner||object_name ||grantee_name_pattern  from v_object_grant_requests q where q.id=r.req_id) req_details,
+r.* from REQUEST_PROCESS_RESULTS r order by processed_ts desc;
+select systimestamp from dual;
 --
 -- Our data model 
 --
@@ -46,7 +54,7 @@ select * from REQUEST_PROCESS_RESULTS order by processed_ts desc;
 select * from sys.all_grantees;
 
 select REQUEST_TYPE rty, t.* from v_object_grant_requests t
---where grantee_is_regexp='Y'
+where grantee_is_regexp != 'Y'
 order by id desc
 ;
 

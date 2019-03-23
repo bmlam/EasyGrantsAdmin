@@ -25,6 +25,7 @@ PROCEDURE p_execute_synonym_ddl(
 	i_ddl VARCHAR2
 ) AS
 BEGIN 
+	debug ($$plsql_unit||':'||$$plsql_line, 'i_ddl: '||i_ddl );
 	IF regexp_instr( i_ddl, '^create|drop .*synonym', 1, 1, 0, 'i' ) > 0 
 		--AND instr( i_ddl, ';' ) = 0
 	THEN 

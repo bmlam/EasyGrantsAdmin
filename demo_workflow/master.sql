@@ -1,3 +1,4 @@
+SET ECHO OFF TERMOUT OFF
 REM master script for convenience 
 REM we switch between connecting users within this script
 
@@ -22,12 +23,12 @@ COL TABLE_NAME FORMAT A30
 COL OWNER FORMAT A20
 COL GRANTEE FORMAT A20
 
-SET ECHO ON FEEDBACK 
 
 SET PAGESize 50 LINESIZE 120
-SET VERIFY ON
-
+SET VERIFY ON TIME ON TIMING ON 
 PROMPT Project X set up 
+
+SET ECHO ON TERMOUT ON FEEDBACK ON
 
 CONNECT &pi_dba_connect_string
 
@@ -35,108 +36,105 @@ DROP SYNONYM app_user2.pkg_crm;
 DROP PACKAGE crm_app.pkg_crm;
 DROP TABLE   crm_app.customer;
 
+DROP TABLE   crm_app.COMMS_CHANNEL;
+DROP TABLE   sales_app.PRODUCT;
+
 CREATE TABLE crm_app.customer AS SELECT * FROM dual;
 
 CREATE OR REPLACE PACKAGE crm_app.pkg_crm AS END;
 /
 SHOW ERRORS
 
-PAUSE
+DELETE object_grant_requests WHERE REGEXP_LIKE( owner, '(CRM|SALES)_APP' ) AND object_name NOT LIKE 'VOL_TEST%'
+;
+COMMIT;
 
 PROMPT before deployment of project X
-@@./verify_proj_x.sql
 
+start ./verify.sql
+PAUSE
+start ./view_req.sql
 PAUSE
 
-PROMPT Doing  deployment 
+PROMPT Deploying project_x
 
 CONNECT &pi_app_schema_1_connect_string
 
 START ./project_X.sql
+PAUSE
+START ./view_req.sql
 
 PROMPT Performing grant from schema CRM_APP
 START ./deploy_bot-CRM_APP.sql
-
 PAUSE
 
 PROMPT after deployment  of project X
 
 CONNECT &pi_dba_connect_string
-START ./verify_proj_x.sql
-
-PROMPT Project y2 set up 
-
+START ./verify.sql
 PAUSE
+
+PROMPT *******   Project y2 set up  ********
+PROMPT Re-create objects, which means object privs that may have existed before will vanish
 
 CONNECT &pi_dba_connect_string
 
+
 SET ECHO ON 
 
-PROMPT Force lost of privilege 
-DROP TABLE   crm_app.COMMS_CHANNEL;
-DROP TABLE   sales_app.PRODUCT;
-
+DROP TABLE crm_app.COMMS_CHANNEL ;
+DROP TABLE sales_app.PRODUCT; 
 CREATE TABLE crm_app.COMMS_CHANNEL AS SELECT * FROM dual;
 CREATE TABLE sales_app.PRODUCT AS SELECT * FROM dual;
 
 PAUSE 
 
-PROMPT before deployment of project y2
-@@./verify_proj_Y2.sql
-
-PAUSE
-
-PROMPT Doing  deployment 
+PROMPT Doing  deployment for project y2
 
 CONNECT &pi_app_schema_1_connect_string
 
 START ./project_y2.sql
+PAUSE
+START ./view_req.sql
+PAUSE
 
 PROMPT Performing grant from schema CRM_APP
-
 START ./deploy_bot-CRM_APP.sql
+PAUSE
 
 PROMPT Performing grant from schema SALES_APP
 CONNECT &pi_app_schema_2_connect_string
-
 START ./deploy_bot-SALES_APP.sql
-
 PAUSE
 
-PROMPT after deployment  of project z2
+PROMPT ******** after deployment  of project z2 **********+
 
 CONNECT &pi_dba_connect_string
-START ./verify_proj_y2.sql
+START ./verify.sql
 
-
-PROMPT Project z set up 
-
+PROMPT deployment for project_z (No new objects required)
 PAUSE
-
-CONNECT &pi_dba_connect_string
-
-SET ECHO ON 
-
-PROMPT before deployment of project z
-START ./verify_proj_z.sql
-
-PAUSE
-
-PROMPT Doing  deployment 
 
 CONNECT &pi_app_schema_1_connect_string
 
 START ./project_z.sql
+PAUSE
+START ./view_req.sql
+PAUSE
 
 PROMPT Performing grant from schema CRM_APP
 START ./deploy_bot-CRM_APP.sql
-
 PAUSE
 
-PROMPT after deployment  of project z
+PROMPT Performing grant from schema SALES_APP
+CONNECT &pi_app_schema_2_connect_string
+START ./deploy_bot-SALES_APP.sql
+PAUSE
+
+PROMPT ***********  after deployment  of project z ***********
 
 CONNECT &pi_dba_connect_string
-START ./verify_proj_z.sql
+START ./verify.sql
+PAUSE
 
-
-
+PROMPT end of demo
